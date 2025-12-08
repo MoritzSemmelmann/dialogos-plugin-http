@@ -1,0 +1,8 @@
+apply plugin: 'java'
+
+dependencies {
+    implementation project(':Diamant')
+    implementation project(':com.clt.base')
+    implementation project(':com.clt.script')
+    implementation project(':com.clt.xml')
+}
