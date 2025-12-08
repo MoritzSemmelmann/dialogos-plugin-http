@@ -5,7 +5,9 @@ import com.clt.diamant.graph.Graph;
 import com.clt.diamant.graph.Node;
 import com.clt.diamant.graph.nodes.NodeExecutionException;
 import com.clt.diamant.gui.NodePropertiesDialog;
+import com.clt.script.exp.Type;
 import com.clt.script.exp.Value;
+import com.clt.script.exp.types.StructType;
 import com.clt.script.exp.values.*;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
@@ -22,10 +24,12 @@ import java.util.Map;
 public class JsonNode extends Node {
 
     private static final String VARIABLE_NAMES = "variableNames";
+    private static final String RESULT_VAR = "resultVar";
 
     public JsonNode() {
         this.addEdge(); 
         this.setProperty(VARIABLE_NAMES, "");
+        this.setProperty(RESULT_VAR, "");
     }
 
     public static String getNodeTypeName(Class<?> c) {
@@ -67,6 +71,25 @@ public class JsonNode extends Node {
             String jsonString = jsonObject.toString(2);
             System.out.println("\n--- Generated JSON ---");
             System.out.println(jsonString);
+            
+            // Store in result variable if specified
+            Slot resultVar = (Slot) this.getProperty(RESULT_VAR);
+            if (resultVar != null) {
+                try {
+                    Type varType = resultVar.getType();
+                    
+                    if (varType instanceof StructType) {
+                        Value structValue = Value.fromJson(jsonObject);
+                        resultVar.setValue(structValue);
+                        System.out.println("\nStored as StructValue in variable: " + resultVar.getName());
+                    } else {
+                        resultVar.setValue(new StringValue(jsonString));
+                        System.out.println("\nStored as String in variable: " + resultVar.getName());
+                    }
+                } catch (Exception e) {
+                    System.out.println("\nWarning: Could not store result in variable '" + resultVar.getName() + "': " + e.getMessage());
+                }
+            }
             
         } catch (NodeExecutionException e) {
             throw e;
@@ -140,18 +163,51 @@ public class JsonNode extends Node {
         });
         p.add(textField, c);
 
+        c.gridx = 0;
+        c.gridy = 1;
+        c.weightx = 0.3;
+        p.add(new JLabel("Store JSON string in:"), c);
+
+        c.gridx = 1;
+        c.weightx = 1.0;
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        List<Slot> filteredVars = new ArrayList<>();
+        for (Slot slot : allVars) {
+            Type type = slot.getType();
+            if (type == Type.String || type instanceof StructType) {
+                filteredVars.add(slot);
+            }
+        }
+        p.add(NodePropertiesDialog.createComboBox(properties, RESULT_VAR, filteredVars), c);
+
         return p;
     }
 
     @Override
     protected void writeAttributes(XMLWriter out, IdMap uid_map) {
         Graph.printAtt(out, VARIABLE_NAMES, this.getProperty(VARIABLE_NAMES).toString());
+        
+        Slot v = (Slot) this.getProperty(RESULT_VAR);
+        if (v != null) {
+            try {
+                String uid = uid_map.variables.getKey(v);
+                Graph.printAtt(out, RESULT_VAR, uid);
+            } catch (Exception exn) {
+                // Variable deleted
+            }
+        }
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
         if (name.equals(VARIABLE_NAMES)) {
             this.setProperty(name, value);
+        } else if (name.equals(RESULT_VAR) && value != null) {
+            try {
+                this.setProperty(name, uid_map.variables.get(value));
+            } catch (Exception exn) {
+                this.setProperty(name, value);
+            }
         } else {
             super.readAttribute(r, name, value, uid_map);
         }
