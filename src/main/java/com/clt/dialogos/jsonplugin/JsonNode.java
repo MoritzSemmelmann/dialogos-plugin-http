@@ -6,8 +6,11 @@ import com.clt.diamant.graph.Node;
 import com.clt.diamant.graph.nodes.NodeExecutionException;
 import com.clt.diamant.gui.NodePropertiesDialog;
 import com.clt.script.exp.Value;
+import com.clt.script.exp.values.*;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
@@ -22,37 +25,84 @@ public class JsonNode extends Node {
 
     public JsonNode() {
         this.addEdge(); 
-        this.setProperty(VARIABLE_NAMES, ""); 
+        this.setProperty(VARIABLE_NAMES, "");
     }
 
     public static String getNodeTypeName(Class<?> c) {
-        return "JSON Test Node";
+        return "JSON Builder";
     }
 
     @Override
     public Node execute(WozInterface comm, InputCenter input, ExecutionLogger logger) {
         logNode(logger);
-
-        String varNamesStr = this.getProperty(VARIABLE_NAMES).toString().trim();
-        if (!varNamesStr.isEmpty()) {
+        
+        try {
+            String varNamesStr = this.getProperty(VARIABLE_NAMES).toString().trim();
+            
+            if (varNamesStr.isEmpty()) {
+                throw new NodeExecutionException(this, "No variables specified");
+            }
+            
+            // Build JSON object from variables
+            JSONObject jsonObject = new JSONObject();
             String[] varNames = varNamesStr.split(",");
+            
             for (String varName : varNames) {
                 varName = varName.trim();
                 try {
                     Slot slot = getSlot(varName);
                     Value value = slot.getValue();
-                    System.out.println("  " + varName + " = " + value);
-                    System.out.println("    Type: " + value.getType());
+                    Object jsonValue = valueToJson(value);
+                    jsonObject.put(varName, jsonValue);
+                    
+                    System.out.println("  " + varName + ": " + jsonValue + " (" + value.getType() + ")");
                     
                 } catch (Exception e) {
-                    System.out.println("  ERROR reading " + varName + ": " + e.getMessage());
+                    System.out.println("  ERROR: " + varName + " - " + e.getMessage());
+                    throw new NodeExecutionException(this, "Error reading variable: " + varName, e);
                 }
             }
+            
+            // Pretty print JSON
+            String jsonString = jsonObject.toString(2);
+            System.out.println("\n--- Generated JSON ---");
+            System.out.println(jsonString);
+            
+        } catch (NodeExecutionException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new NodeExecutionException(this, "Failed to build JSON: " + e.getMessage(), e);
         }
         
-        System.out.println("========================\n");
-        
         return getEdge(0).getTarget();
+    }
+
+    private Object valueToJson(Value value) {
+        if (value instanceof IntValue) {
+            return ((IntValue) value).getInt();
+        } else if (value instanceof RealValue) {
+            return ((RealValue) value).getReal();
+        } else if (value instanceof BoolValue) {
+            return ((BoolValue) value).getBool();
+        } else if (value instanceof StringValue) {
+            return ((StringValue) value).getString();
+        } else if (value instanceof ListValue) {
+            ListValue list = (ListValue) value;
+            JSONArray arr = new JSONArray();
+            for (int i = 0; i < list.size(); i++) {
+                arr.put(valueToJson(list.get(i)));
+            }
+            return arr;
+        } else if (value instanceof StructValue) {
+            StructValue struct = (StructValue) value;
+            JSONObject obj = new JSONObject();
+            for (String key : struct.getLabels()) {
+                obj.put(key, valueToJson(struct.getValue(key)));
+            }
+            return obj;
+        } else {
+            return value.toString();
+        }
     }
 
     private Slot getSlot(String name) {
@@ -87,6 +137,7 @@ public class JsonNode extends Node {
             }
         });
         p.add(textField, c);
+
         return p;
     }
 
