@@ -9,6 +9,9 @@ bin/
 *.iml
 *.iws
 *.ipr
+.classpath
+.project
+.settings/
 
 # OS
 .DS_Store
