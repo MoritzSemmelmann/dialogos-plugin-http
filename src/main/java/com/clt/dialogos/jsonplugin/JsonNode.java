@@ -78,7 +78,9 @@ public class JsonNode extends Node {
     }
 
     private Object valueToJson(Value value) {
-        if (value instanceof IntValue) {
+        if (value instanceof com.clt.script.exp.values.Undefined) {
+            return JSONObject.NULL;
+        } else if (value instanceof IntValue) {
             return ((IntValue) value).getInt();
         } else if (value instanceof RealValue) {
             return ((RealValue) value).getReal();
