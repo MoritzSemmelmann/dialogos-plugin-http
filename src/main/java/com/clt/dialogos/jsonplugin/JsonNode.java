@@ -79,7 +79,7 @@ public class JsonNode extends Node {
                     Type varType = resultVar.getType();
                     
                     if (varType instanceof StructType) {
-                        Value structValue = Value.fromJson(jsonObject);
+                        Value structValue = jsonToValue(jsonObject);
                         resultVar.setValue(structValue);
                         System.out.println("\nStored as StructValue in variable: " + resultVar.getName());
                     } else {
@@ -127,6 +127,42 @@ public class JsonNode extends Node {
             return obj;
         } else {
             return value.toString();
+        }
+    }
+
+    private Value jsonToValue(Object json) {
+        if (json == null || json == JSONObject.NULL) {
+            return new Undefined();
+        } else if (json instanceof JSONObject) {
+            JSONObject obj = (JSONObject) json;
+            String[] labels = new String[obj.length()];
+            Value[] values = new Value[obj.length()];
+            int i = 0;
+            for (String key : obj.keySet()) {
+                labels[i] = key;
+                values[i] = jsonToValue(obj.get(key));
+                i++;
+            }
+            return new StructValue(labels, values);
+        } else if (json instanceof JSONArray) {
+            JSONArray arr = (JSONArray) json;
+            Value[] values = new Value[arr.length()];
+            for (int i = 0; i < arr.length(); i++) {
+                values[i] = jsonToValue(arr.get(i));
+            }
+            return new ListValue(values);
+        } else if (json instanceof Boolean) {
+            return new BoolValue((Boolean) json);
+        } else if (json instanceof Integer) {
+            return new IntValue((Integer) json);
+        } else if (json instanceof Long) {
+            return new IntValue(((Long) json).intValue());
+        } else if (json instanceof Double) {
+            return new RealValue((Double) json);
+        } else if (json instanceof String) {
+            return new StringValue((String) json);
+        } else {
+            return new StringValue(json.toString());
         }
     }
 
