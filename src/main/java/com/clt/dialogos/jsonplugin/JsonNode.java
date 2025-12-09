@@ -24,12 +24,10 @@ import java.util.Map;
 public class JsonNode extends Node {
 
     private static final String VARIABLE_NAMES = "variableNames";
-    private static final String RESULT_VAR = "resultVar";
 
     public JsonNode() {
         this.addEdge(); 
         this.setProperty(VARIABLE_NAMES, "");
-        this.setProperty(RESULT_VAR, "");
     }
 
     public static String getNodeTypeName(Class<?> c) {
@@ -71,25 +69,6 @@ public class JsonNode extends Node {
             String jsonString = jsonObject.toString(2);
             System.out.println("\n--- Generated JSON ---");
             System.out.println(jsonString);
-            
-            // Store in result variable if specified
-            Slot resultVar = (Slot) this.getProperty(RESULT_VAR);
-            if (resultVar != null) {
-                try {
-                    Type varType = resultVar.getType();
-                    
-                    if (varType instanceof StructType) {
-                        Value structValue = jsonToValue(jsonObject);
-                        resultVar.setValue(structValue);
-                        System.out.println("\nStored as StructValue in variable: " + resultVar.getName());
-                    } else {
-                        resultVar.setValue(new StringValue(jsonString));
-                        System.out.println("\nStored as String in variable: " + resultVar.getName());
-                    }
-                } catch (Exception e) {
-                    System.out.println("\nWarning: Could not store result in variable '" + resultVar.getName() + "': " + e.getMessage());
-                }
-            }
             
         } catch (NodeExecutionException e) {
             throw e;
@@ -177,73 +156,137 @@ public class JsonNode extends Node {
 
     @Override
     public JComponent createEditorComponent(Map<String, Object> properties) {
-        JPanel p = new JPanel(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(5, 5, 5, 5);
-
-        c.gridx = 0;
-        c.gridy = 0;
-        c.weightx = 0.3;
-        p.add(new JLabel("Variable names (comma-separated):"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
-        JTextField textField = new JTextField(20);
-        textField.setText(properties.getOrDefault(VARIABLE_NAMES, "").toString());
-        textField.addActionListener(e -> properties.put(VARIABLE_NAMES, textField.getText()));
-        textField.addFocusListener(new java.awt.event.FocusAdapter() {
-            public void focusLost(java.awt.event.FocusEvent e) {
-                properties.put(VARIABLE_NAMES, textField.getText());
-            }
-        });
-        p.add(textField, c);
-
-        c.gridx = 0;
-        c.gridy = 1;
-        c.weightx = 0.3;
-        p.add(new JLabel("Store JSON string in:"), c);
-
-        c.gridx = 1;
-        c.weightx = 1.0;
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        
+        JPanel varsPanel = new JPanel(new GridBagLayout());
+    
         List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
-        List<Slot> filteredVars = new ArrayList<>();
-        for (Slot slot : allVars) {
-            Type type = slot.getType();
-            if (type == Type.String || type instanceof StructType) {
-                filteredVars.add(slot);
+        
+        String varNamesStr = properties.getOrDefault(VARIABLE_NAMES, "").toString();
+        
+        if (!varNamesStr.trim().isEmpty()) {
+            String[] parts = varNamesStr.split(",");
+            int index = 0;
+            for (String part : parts) {
+                addVariableRowAt(varsPanel, properties, allVars, part.trim(), index++);
+            }
+        } else {
+            addVariableRowAt(varsPanel, properties, allVars, "", 0);
+        }
+        
+        JScrollPane scrollPane = new JScrollPane(varsPanel);
+        scrollPane.setPreferredSize(new Dimension(400, 200));
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        return mainPanel;
+    }
+    
+    private void updateVariableNames(JPanel varsPanel, Map<String, Object> properties) {
+        List<String> selectedVars = new ArrayList<>();
+        
+        for (Component comp : varsPanel.getComponents()) {
+            if (comp instanceof JPanel) {
+                JPanel rowPanel = (JPanel) comp;
+                for (Component rowComp : rowPanel.getComponents()) {
+                    if (rowComp instanceof JComboBox) {
+                        @SuppressWarnings("unchecked")
+                        JComboBox<String> comboBox = (JComboBox<String>) rowComp;
+                        String selected = (String) comboBox.getSelectedItem();
+                        if (selected != null && !selected.isEmpty()) {
+                            selectedVars.add(selected);
+                        }
+                    }
+                }
             }
         }
-        p.add(NodePropertiesDialog.createComboBox(properties, RESULT_VAR, filteredVars), c);
-
-        return p;
+        
+        String varNamesStr = String.join(", ", selectedVars);
+        properties.put(VARIABLE_NAMES, varNamesStr);
+    }
+    
+    private int getRowIndex(JPanel varsPanel, JPanel rowPanel) {
+        Component[] components = varsPanel.getComponents();
+        for (int i = 0; i < components.length; i++) {
+            if (components[i] == rowPanel) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
+    private void addVariableRowAt(JPanel varsPanel, Map<String, Object> properties, List<Slot> allVars, String initialValue, int index) {
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(2, 2, 2, 2);
+        
+        c.gridx = 0;
+        c.weightx = 1.0;
+        JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.addItem(""); 
+        for (Slot slot : allVars) {
+            comboBox.addItem(slot.getName());
+        }
+        
+        if (!initialValue.isEmpty()) {
+            comboBox.setSelectedItem(initialValue);
+        }
+        
+        comboBox.addActionListener(e -> updateVariableNames(varsPanel, properties));
+        rowPanel.add(comboBox, c);
+        
+        c.gridx = 1;
+        c.weightx = 0;
+        JButton plusButton = new JButton("+");
+        plusButton.addActionListener(e -> {
+            int idx = getRowIndex(varsPanel, rowPanel);
+            addVariableRowAt(varsPanel, properties, allVars, "", idx + 1);
+            varsPanel.revalidate();
+            varsPanel.repaint();
+            updateVariableNames(varsPanel, properties);
+        });
+        rowPanel.add(plusButton, c);
+        
+        c.gridx = 2;
+        JButton minusButton = new JButton("-");
+        minusButton.addActionListener(e -> {
+            varsPanel.remove(rowPanel);
+            varsPanel.revalidate();
+            varsPanel.repaint();
+            updateVariableNames(varsPanel, properties);
+        });
+        rowPanel.add(minusButton, c);
+        
+        // Add row to varsPanel with GridBagConstraints
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = index;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        
+        varsPanel.add(rowPanel, gbc, index);
+        
+        // Add a filler component at the bottom to push everything to the top
+        GridBagConstraints fillerGbc = new GridBagConstraints();
+        fillerGbc.gridx = 0;
+        fillerGbc.gridy = 999;
+        fillerGbc.weighty = 1.0;
+        fillerGbc.fill = GridBagConstraints.BOTH;
+        varsPanel.add(Box.createVerticalGlue(), fillerGbc);
     }
 
     @Override
     protected void writeAttributes(XMLWriter out, IdMap uid_map) {
         Graph.printAtt(out, VARIABLE_NAMES, this.getProperty(VARIABLE_NAMES).toString());
-        
-        Slot v = (Slot) this.getProperty(RESULT_VAR);
-        if (v != null) {
-            try {
-                String uid = uid_map.variables.getKey(v);
-                Graph.printAtt(out, RESULT_VAR, uid);
-            } catch (Exception exn) {
-                // Variable deleted
-            }
-        }
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
         if (name.equals(VARIABLE_NAMES)) {
             this.setProperty(name, value);
-        } else if (name.equals(RESULT_VAR) && value != null) {
-            try {
-                this.setProperty(name, uid_map.variables.get(value));
-            } catch (Exception exn) {
-                this.setProperty(name, value);
-            }
         } else {
             super.readAttribute(r, name, value, uid_map);
         }
