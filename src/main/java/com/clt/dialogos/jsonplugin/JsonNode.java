@@ -11,7 +11,6 @@ import com.clt.script.exp.types.StructType;
 import com.clt.script.exp.values.*;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
@@ -45,29 +44,13 @@ public class JsonNode extends Node {
                 throw new NodeExecutionException(this, "No variables specified");
             }
             
-            // Build JSON object from variables
-            JSONObject jsonObject = new JSONObject();
             String[] varNames = varNamesStr.split(",");
             
-            for (String varName : varNames) {
-                varName = varName.trim();
-                try {
-                    Slot slot = getSlot(varName);
-                    Value value = slot.getValue();
-                    Object jsonValue = valueToJson(value);
-                    jsonObject.put(varName, jsonValue);
-                    
-                    System.out.println("  " + varName + ": " + jsonValue + " (" + value.getType() + ")");
-                    
-                } catch (Exception e) {
-                    System.out.println("  ERROR: " + varName + " - " + e.getMessage());
-                    throw new NodeExecutionException(this, "Error reading variable: " + varName, e);
-                }
-            }
+            JSONObject jsonObject = JsonConverter.variablesToJson(varNames, this::getSlot);
             
             // Pretty print JSON
             String jsonString = jsonObject.toString(2);
-            System.out.println("\n--- Generated JSON ---");
+            System.out.println("\n Generated JSON");
             System.out.println(jsonString);
             
         } catch (NodeExecutionException e) {
@@ -77,72 +60,6 @@ public class JsonNode extends Node {
         }
         
         return getEdge(0).getTarget();
-    }
-
-    private Object valueToJson(Value value) {
-        if (value instanceof com.clt.script.exp.values.Undefined) {
-            return JSONObject.NULL;
-        } else if (value instanceof IntValue) {
-            return ((IntValue) value).getInt();
-        } else if (value instanceof RealValue) {
-            return ((RealValue) value).getReal();
-        } else if (value instanceof BoolValue) {
-            return ((BoolValue) value).getBool();
-        } else if (value instanceof StringValue) {
-            return ((StringValue) value).getString();
-        } else if (value instanceof ListValue) {
-            ListValue list = (ListValue) value;
-            JSONArray arr = new JSONArray();
-            for (int i = 0; i < list.size(); i++) {
-                arr.put(valueToJson(list.get(i)));
-            }
-            return arr;
-        } else if (value instanceof StructValue) {
-            StructValue struct = (StructValue) value;
-            JSONObject obj = new JSONObject();
-            for (String key : struct.getLabels()) {
-                obj.put(key, valueToJson(struct.getValue(key)));
-            }
-            return obj;
-        } else {
-            return value.toString();
-        }
-    }
-
-    private Value jsonToValue(Object json) {
-        if (json == null || json == JSONObject.NULL) {
-            return new Undefined();
-        } else if (json instanceof JSONObject) {
-            JSONObject obj = (JSONObject) json;
-            String[] labels = new String[obj.length()];
-            Value[] values = new Value[obj.length()];
-            int i = 0;
-            for (String key : obj.keySet()) {
-                labels[i] = key;
-                values[i] = jsonToValue(obj.get(key));
-                i++;
-            }
-            return new StructValue(labels, values);
-        } else if (json instanceof JSONArray) {
-            JSONArray arr = (JSONArray) json;
-            Value[] values = new Value[arr.length()];
-            for (int i = 0; i < arr.length(); i++) {
-                values[i] = jsonToValue(arr.get(i));
-            }
-            return new ListValue(values);
-        } else if (json instanceof Boolean) {
-            return new BoolValue((Boolean) json);
-        } else if (json instanceof Integer) {
-            return new IntValue((Integer) json);
-        } else if (json instanceof Long) {
-            return new IntValue(((Long) json).intValue());
-        } else if (json instanceof Double) {
-            return new RealValue((Double) json);
-        } else if (json instanceof String) {
-            return new StringValue((String) json);
-        } else {
-            return new StringValue(json.toString());
-        }
     }
 
     private Slot getSlot(String name) {
@@ -257,7 +174,6 @@ public class JsonNode extends Node {
         });
         rowPanel.add(minusButton, c);
         
-        // Add row to varsPanel with GridBagConstraints
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = index;
@@ -269,7 +185,6 @@ public class JsonNode extends Node {
         
         varsPanel.add(rowPanel, gbc, index);
         
-        // Add a filler component at the bottom to push everything to the top
         GridBagConstraints fillerGbc = new GridBagConstraints();
         fillerGbc.gridx = 0;
         fillerGbc.gridy = 999;
