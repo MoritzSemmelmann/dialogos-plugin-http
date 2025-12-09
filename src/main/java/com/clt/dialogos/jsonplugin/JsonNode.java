@@ -44,31 +44,34 @@ public class JsonNode extends Node {
         logNode(logger);
         
         try {
+            String url = this.getProperty(HTTP_URL).toString();
+            String pathVarsStr = this.getProperty(PATH_VARIABLES).toString();
+            String queryParamsStr = this.getProperty(QUERY_PARAMETERS).toString();
             String varNamesStr = this.getProperty(VARIABLE_NAMES).toString().trim();
             
-            if (varNamesStr.isEmpty()) {
-                throw new NodeExecutionException(this, "No variables specified");
-            }
+            String[] pathVarMappings = pathVarsStr.isEmpty() ? new String[0] : pathVarsStr.split(",");
+            String[] queryParamVars = queryParamsStr.isEmpty() ? new String[0] : queryParamsStr.split(",");
+            String[] bodyVars = varNamesStr.isEmpty() ? new String[0] : varNamesStr.split(",");
             
-            String[] varNames = varNamesStr.split(",");
+            // Build JSON object from body variables
+            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVars, this::getSlot);
             
-            JSONObject jsonObject = JsonConverter.variablesToJson(varNames, this::getSlot);
-            
-            String jsonString = jsonObject.toString(2);
-            System.out.println("\n Generated JSON");
-            System.out.println(jsonString);
+            System.out.println("\n Generated JSON Body");
+            System.out.println(jsonBody.toString(2));
 
+            // Send HTTP request with JSON object
             HttpHandler.sendHttpRequest(
-                this.getProperty(HTTP_URL).toString(),
-                this.getProperty(PATH_VARIABLES).toString(),
-                this.getProperty(QUERY_PARAMETERS).toString(),
-                jsonString
+                url,
+                pathVarMappings,
+                queryParamVars,
+                jsonBody,
+                this::getSlot
             );
             
         } catch (NodeExecutionException e) {
             throw e;
         } catch (Exception e) {
-            throw new NodeExecutionException(this, "Failed to build JSON: " + e.getMessage(), e);
+            throw new NodeExecutionException(this, "Failed to send HTTP request: " + e.getMessage(), e);
         }
         
         return getEdge(0).getTarget();
