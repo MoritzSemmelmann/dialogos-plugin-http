@@ -100,45 +100,67 @@ public class JsonNode extends Node {
         gbc.weightx = 1.0;
         JTextField urlField = new JTextField(20);
         urlField.setText(properties.getOrDefault(HTTP_URL, "").toString());
-        urlField.addActionListener(e -> properties.put(HTTP_URL, urlField.getText()));
+        
+        JPanel urlContainer = new JPanel(new BorderLayout());
+        urlContainer.add(urlField, BorderLayout.NORTH);
+
+        JPanel pathVarsPanel = new JPanel(new GridBagLayout());
+        JScrollPane pathScrollPane = new JScrollPane(pathVarsPanel);
+        pathScrollPane.setPreferredSize(new Dimension(400, 100));
+        pathScrollPane.setBorder(BorderFactory.createTitledBorder("Path Variables"));
+        urlContainer.add(pathScrollPane, BorderLayout.CENTER);
+        
+        Runnable updatePathVars = () -> {
+            properties.put(HTTP_URL, urlField.getText());
+            pathVarsPanel.removeAll();
+            List<String> pathVarNames = extractPathVariables(urlField.getText());
+            List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+            
+            String savedMappings = properties.getOrDefault(PATH_VARIABLES, "").toString();
+            Map<String, String> mappingMap = parseMappings(savedMappings);
+            
+            int index = 0;
+            for (String pathVarName : pathVarNames) {
+                addPathVariableRow(pathVarsPanel, properties, allVars, pathVarName, 
+                                  mappingMap.getOrDefault(pathVarName, ""), index++);
+            }
+            
+            pathVarsPanel.revalidate();
+            pathVarsPanel.repaint();
+        };
+        
+        urlField.addActionListener(e -> updatePathVars.run());
         urlField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent e) {
-                properties.put(HTTP_URL, urlField.getText());
+                updatePathVars.run();
             }
         });
-        mainPanel.add(urlField, gbc);
         
+        updatePathVars.run();
+        
+        mainPanel.add(urlContainer, gbc);
+        
+
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
         gbc.weighty = 0;
-        mainPanel.add(new JLabel("Path Variables:"), gbc);
-        
-        gbc.gridy = 2;
-        gbc.weighty = 0.33;
-        JPanel pathVarsPanel = createVariablePanel(properties, PATH_VARIABLES);
-        JScrollPane pathScrollPane = new JScrollPane(pathVarsPanel);
-        pathScrollPane.setPreferredSize(new Dimension(400, 100));
-        mainPanel.add(pathScrollPane, gbc);
-        
-        gbc.gridy = 3;
-        gbc.weighty = 0;
         mainPanel.add(new JLabel("Query Parameters:"), gbc);
         
-        gbc.gridy = 4;
-        gbc.weighty = 0.33;
+        gbc.gridy = 2;
+        gbc.weighty = 0.5;
         JPanel queryParamsPanel = createVariablePanel(properties, QUERY_PARAMETERS);
         JScrollPane queryScrollPane = new JScrollPane(queryParamsPanel);
         queryScrollPane.setPreferredSize(new Dimension(400, 100));
         mainPanel.add(queryScrollPane, gbc);
         
-        gbc.gridy = 5;
+        gbc.gridy = 3;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("JSON Body Variables:"), gbc);
         
-        gbc.gridy = 6;
-        gbc.weighty = 0.34;
+        gbc.gridy = 4;
+        gbc.weighty = 0.5;
         JPanel varsPanel = createVariablePanel(properties, VARIABLE_NAMES);
         JScrollPane scrollPane = new JScrollPane(varsPanel);
         scrollPane.setPreferredSize(new Dimension(400, 100));
@@ -146,6 +168,118 @@ public class JsonNode extends Node {
         
         return mainPanel;
     }
+    
+    private List<String> extractPathVariables(String url) {
+        List<String> pathVars = new ArrayList<>();
+        int start = 0;
+        while ((start = url.indexOf('{', start)) != -1) {
+            int end = url.indexOf('}', start);
+            if (end != -1) {
+                String varName = url.substring(start + 1, end);
+                pathVars.add(varName);
+                start = end + 1;
+            } else {
+                break;
+            }
+        }
+        return pathVars;
+    }
+    
+    private Map<String, String> parseMappings(String mappingsStr) {
+        Map<String, String> mappings = new java.util.HashMap<>();
+        if (mappingsStr.trim().isEmpty()) {
+            return mappings;
+        }
+        
+        String[] parts = mappingsStr.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            String[] keyValue = part.split("=");
+            if (keyValue.length == 2) {
+                mappings.put(keyValue[0].trim(), keyValue[1].trim());
+            }
+        }
+        return mappings;
+    }
+    
+    private void addPathVariableRow(JPanel panel, Map<String, Object> properties, 
+                                    List<Slot> allVars, String pathVarName, 
+                                    String selectedVar, int index) {
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(2, 2, 2, 2);
+        
+        c.gridx = 0;
+        c.weightx = 0.3;
+        JLabel label = new JLabel("{" + pathVarName + "} =");
+        rowPanel.add(label, c);
+        
+        c.gridx = 1;
+        c.weightx = 0.7;
+        JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.addItem("");
+        for (Slot slot : allVars) {
+            comboBox.addItem(slot.getName());
+        }
+        
+        if (!selectedVar.isEmpty()) {
+            comboBox.setSelectedItem(selectedVar);
+        }
+        
+        comboBox.addActionListener(e -> updatePathVariableMappings(panel, properties));
+        rowPanel.add(comboBox, c);
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = index;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        
+        panel.add(rowPanel, gbc, index);
+        
+        GridBagConstraints fillerGbc = new GridBagConstraints();
+        fillerGbc.gridx = 0;
+        fillerGbc.gridy = 999;
+        fillerGbc.weighty = 1.0;
+        fillerGbc.fill = GridBagConstraints.BOTH;
+        panel.add(Box.createVerticalGlue(), fillerGbc);
+    }
+    
+    private void updatePathVariableMappings(JPanel panel, Map<String, Object> properties) {
+        List<String> mappings = new ArrayList<>();
+        
+        for (Component comp : panel.getComponents()) {
+            if (comp instanceof JPanel) {
+                JPanel rowPanel = (JPanel) comp;
+                String pathVarName = null;
+                String selectedVar = null;
+                
+                for (Component rowComp : rowPanel.getComponents()) {
+                    if (rowComp instanceof JLabel) {
+                        JLabel label = (JLabel) rowComp;
+                        String text = label.getText();
+                        if (text.startsWith("{") && text.contains("}")) {
+                            pathVarName = text.substring(1, text.indexOf("}"));
+                        }
+                    } else if (rowComp instanceof JComboBox) {
+                        @SuppressWarnings("unchecked")
+                        JComboBox<String> comboBox = (JComboBox<String>) rowComp;
+                        selectedVar = (String) comboBox.getSelectedItem();
+                    }
+                }
+                
+                if (pathVarName != null && selectedVar != null && !selectedVar.isEmpty()) {
+                    mappings.add(pathVarName + "=" + selectedVar);
+                }
+            }
+        }
+        
+        properties.put(PATH_VARIABLES, String.join(", ", mappings));
+    }
+
     
     private JPanel createVariablePanel(Map<String, Object> properties, String propertyKey) {
         JPanel varsPanel = new JPanel(new GridBagLayout());
