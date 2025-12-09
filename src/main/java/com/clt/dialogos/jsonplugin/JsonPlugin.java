@@ -38,7 +38,7 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
         // Register custom node types
         Node.registerNodeTypes(
             getId(),
-            Arrays.<Class<?>>asList(JsonNode.class)
+            Arrays.<Class<?>>asList(JsonNode.class, JsonParserNode.class)
         );
     }
 
