@@ -146,28 +146,49 @@ public class SendAndReceiveNode extends Node {
         pathScrollPane.setBorder(BorderFactory.createTitledBorder("Path Variables"));
         urlContainer.add(pathScrollPane, BorderLayout.CENTER);
         
+        final List<String>[] lastPathVars = new List[]{new ArrayList<>()};
+        
         Runnable updatePathVars = () -> {
             properties.put(URL, urlField.getText());
-            pathVarsPanel.removeAll();
             List<String> pathVarNames = extractPathVariables(urlField.getText());
-            List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
             
-            String savedMappings = properties.getOrDefault(PATH_VARIABLES, "").toString();
-            Map<String, String> mappingMap = parseMappings(savedMappings);
-            
-            int index = 0;
-            for (String pathVarName : pathVarNames) {
-                addPathVariableRow(pathVarsPanel, properties, allVars, pathVarName, 
-                                  mappingMap.getOrDefault(pathVarName, ""), index++);
+            // Only update if path variables actually changed
+            if (!pathVarNames.equals(lastPathVars[0])) {
+                lastPathVars[0] = new ArrayList<>(pathVarNames);
+                
+                pathVarsPanel.removeAll();
+                List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+                
+                String savedMappings = properties.getOrDefault(PATH_VARIABLES, "").toString();
+                Map<String, String> mappingMap = parseMappings(savedMappings);
+                
+                int index = 0;
+                for (String pathVarName : pathVarNames) {
+                    addPathVariableRow(pathVarsPanel, properties, allVars, pathVarName, 
+                                      mappingMap.getOrDefault(pathVarName, ""), index++);
+                }
+                
+                pathVarsPanel.revalidate();
+                pathVarsPanel.repaint();
             }
-            
-            pathVarsPanel.revalidate();
-            pathVarsPanel.repaint();
         };
         
         urlField.addActionListener(e -> updatePathVars.run());
         urlField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent e) {
+                updatePathVars.run();
+            }
+        });
+        
+        // DocumentListener for dynamic updates while typing
+        urlField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                updatePathVars.run();
+            }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                updatePathVars.run();
+            }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
                 updatePathVars.run();
             }
         });
