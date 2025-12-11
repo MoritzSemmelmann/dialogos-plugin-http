@@ -22,7 +22,10 @@ public class SendAndReceiveNode extends Node {
     private static final String PATH_VARIABLES = "pathVariables";
     private static final String QUERY_VARIABLES = "queryVariables";
     private static final String BODY_VARIABLES = "bodyVariables";
+    private static final String RESPONSE_MODE = "responseMode"; 
     private static final String RESPONSE_MAPPINGS = "responseMappings";
+    private static final String RESPONSE_TARGET_VAR = "responseTargetVar";
+    private static final String RESPONSE_AS_STRING = "responseAsString";
 
     public SendAndReceiveNode() {
         this.addEdge();
@@ -31,7 +34,10 @@ public class SendAndReceiveNode extends Node {
         this.setProperty(PATH_VARIABLES, "");
         this.setProperty(QUERY_VARIABLES, "");
         this.setProperty(BODY_VARIABLES, "");
+        this.setProperty(RESPONSE_MODE, "multiple");
         this.setProperty(RESPONSE_MAPPINGS, "");
+        this.setProperty(RESPONSE_TARGET_VAR, "");
+        this.setProperty(RESPONSE_AS_STRING, "false");
     }
 
     public static String getNodeTypeName(Class<?> c) {
@@ -59,36 +65,17 @@ public class SendAndReceiveNode extends Node {
             String response = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot);
             JSONObject responseJson = new JSONObject(response);
 
-            // Response mapping (jsonKey=varName, comma separated)
-            String mappingsStr = this.getProperty(RESPONSE_MAPPINGS).toString().trim();
-            if (mappingsStr.isEmpty()) {
-                System.out.println("Warning: No response variable mappings specified");
-                return getEdge(0).getTarget();
-            }
-            String[] mappings = mappingsStr.split(",");
-            for (String mapping : mappings) {
-                mapping = mapping.trim();
-                if (mapping.isEmpty()) continue;
-                String[] parts = mapping.split("=");
-                if (parts.length != 2) {
-                    System.out.println("Warning: Invalid mapping format '" + mapping + "', expected 'jsonKey=varName'");
-                    continue;
-                }
-                String jsonKey = parts[0].trim();
-                String varName = parts[1].trim();
-                try {
-                    if (responseJson.has(jsonKey)) {
-                        Object jsonValue = responseJson.get(jsonKey);
-                        Value dialogosValue = JsonConverter.jsonToValue(jsonValue);
-                        Slot targetSlot = getSlot(varName);
-                        targetSlot.setValue(dialogosValue);
-                        System.out.println("  " + jsonKey + " -> " + varName + ": " + dialogosValue + " (" + dialogosValue.getType() + ")");
-                    } else {
-                        System.out.println("  " + jsonKey + " not found in response JSON (skipping " + varName + ")");
-                    }
-                } catch (Exception e) {
-                    System.out.println("  ERROR: " + jsonKey + " -> " + varName + ": " + e.getMessage());
-                }
+            // Map response based on mode
+            String responseMode = this.getProperty(RESPONSE_MODE).toString();
+            if ("single".equals(responseMode)) {
+                // Single variable mode
+                String targetVar = this.getProperty(RESPONSE_TARGET_VAR).toString().trim();
+                boolean asString = Boolean.parseBoolean(this.getProperty(RESPONSE_AS_STRING).toString());
+                JsonConverter.mapJsonToSingleVariable(responseJson, targetVar, asString, this::getSlot);
+            } else {
+                // Multiple variables mode (default)
+                String mappingsStr = this.getProperty(RESPONSE_MAPPINGS).toString().trim();
+                JsonConverter.mapJsonToVariables(responseJson, mappingsStr, this::getSlot);
             }
         } catch (NodeExecutionException e) {
             throw e;
@@ -208,17 +195,110 @@ public class SendAndReceiveNode extends Node {
         scrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(scrollPane, gbc);
         
-        // Response Mappings
+        // Response Mode Selection
         gbc.gridy = 6;
         gbc.weighty = 0;
-        mainPanel.add(new JLabel("Response Mappings:"), gbc);
+        mainPanel.add(new JLabel("Response Mode:"), gbc);
         
         gbc.gridy = 7;
+        gbc.weighty = 0;
+        JPanel responseModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        ButtonGroup modeGroup = new ButtonGroup();
+        JRadioButton multipleVarsRadio = new JRadioButton("Map to multiple variables");
+        JRadioButton singleVarRadio = new JRadioButton("Store in single variable");
+        modeGroup.add(multipleVarsRadio);
+        modeGroup.add(singleVarRadio);
+        responseModePanel.add(multipleVarsRadio);
+        responseModePanel.add(singleVarRadio);
+        
+        String currentMode = properties.getOrDefault(RESPONSE_MODE, "multiple").toString();
+        if ("single".equals(currentMode)) {
+            singleVarRadio.setSelected(true);
+        } else {
+            multipleVarsRadio.setSelected(true);
+        }
+        
+        mainPanel.add(responseModePanel, gbc);
+        
+        // response configuration
+        gbc.gridy = 8;
         gbc.weighty = 0.3;
-        JPanel responseMappingsPanel = createResponseMappingPanel(properties);
-        JScrollPane responseMappingsScrollPane = new JScrollPane(responseMappingsPanel);
-        responseMappingsScrollPane.setPreferredSize(new Dimension(400, 80));
-        mainPanel.add(responseMappingsScrollPane, gbc);
+        JPanel responseConfigContainer = new JPanel(new CardLayout());
+        
+        // Multiple variables panel
+        JPanel multipleMappingsPanel = createResponseMappingPanel(properties);
+        JScrollPane multipleMappingsScrollPane = new JScrollPane(multipleMappingsPanel);
+        multipleMappingsScrollPane.setPreferredSize(new Dimension(400, 80));
+        responseConfigContainer.add(multipleMappingsScrollPane, "multiple");
+        
+        // Single variable panel
+        JPanel singleVarPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints svc = new GridBagConstraints();
+        svc.fill = GridBagConstraints.HORIZONTAL;
+        svc.insets = new Insets(5, 5, 5, 5);
+        
+        svc.gridx = 0;
+        svc.gridy = 0;
+        svc.weightx = 0;
+        singleVarPanel.add(new JLabel("Target Variable:"), svc);
+        
+        svc.gridx = 1;
+        svc.weightx = 1.0;
+        JComboBox<String> targetVarCombo = new JComboBox<>();
+        targetVarCombo.addItem("");
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : allVars) {
+            targetVarCombo.addItem(slot.getName());
+        }
+        targetVarCombo.setSelectedItem(properties.getOrDefault(RESPONSE_TARGET_VAR, "").toString());
+        targetVarCombo.addActionListener(e -> properties.put(RESPONSE_TARGET_VAR, targetVarCombo.getSelectedItem()));
+        singleVarPanel.add(targetVarCombo, svc);
+        
+        svc.gridx = 0;
+        svc.gridy = 1;
+        svc.weightx = 0;
+        singleVarPanel.add(new JLabel("Store as:"), svc);
+        
+        svc.gridx = 1;
+        svc.weightx = 1.0;
+        JPanel typePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        ButtonGroup typeGroup = new ButtonGroup();
+        JRadioButton structRadio = new JRadioButton("Struct");
+        JRadioButton stringRadio = new JRadioButton("String");
+        typeGroup.add(structRadio);
+        typeGroup.add(stringRadio);
+        typePanel.add(structRadio);
+        typePanel.add(stringRadio);
+        
+        boolean asString = Boolean.parseBoolean(properties.getOrDefault(RESPONSE_AS_STRING, "false").toString());
+        if (asString) {
+            stringRadio.setSelected(true);
+        } else {
+            structRadio.setSelected(true);
+        }
+        
+        structRadio.addActionListener(e -> properties.put(RESPONSE_AS_STRING, "false"));
+        stringRadio.addActionListener(e -> properties.put(RESPONSE_AS_STRING, "true"));
+        
+        singleVarPanel.add(typePanel, svc);
+        
+        responseConfigContainer.add(singleVarPanel, "single");
+        
+        // Show correct panel based on current mode
+        CardLayout cardLayout = (CardLayout) responseConfigContainer.getLayout();
+        cardLayout.show(responseConfigContainer, currentMode);
+        
+        // listeners to switch panels
+        multipleVarsRadio.addActionListener(e -> {
+            properties.put(RESPONSE_MODE, "multiple");
+            cardLayout.show(responseConfigContainer, "multiple");
+        });
+        singleVarRadio.addActionListener(e -> {
+            properties.put(RESPONSE_MODE, "single");
+            cardLayout.show(responseConfigContainer, "single");
+        });
+        
+        mainPanel.add(responseConfigContainer, gbc);
         
         return mainPanel;
     }
@@ -453,11 +533,49 @@ public class SendAndReceiveNode extends Node {
         JPanel mappingsPanel = new JPanel(new GridBagLayout());
         List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
         
+        // Add header row
+        JPanel headerPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints hc = new GridBagConstraints();
+        hc.fill = GridBagConstraints.HORIZONTAL;
+        hc.insets = new Insets(2, 2, 2, 2);
+        
+        hc.gridx = 0;
+        hc.weightx = 0.4;
+        JLabel jsonKeyLabel = new JLabel("JsonKey");
+        jsonKeyLabel.setFont(jsonKeyLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        headerPanel.add(jsonKeyLabel, hc);
+        
+        hc.gridx = 1;
+        hc.weightx = 0;
+        headerPanel.add(new JLabel(""), hc);
+        
+        hc.gridx = 2;
+        hc.weightx = 0.4;
+        JLabel variableLabel = new JLabel("Variable");
+        variableLabel.setFont(variableLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        headerPanel.add(variableLabel, hc);
+        
+        hc.gridx = 3;
+        hc.weightx = 0;
+        headerPanel.add(new JLabel(""), hc); // Empty space for buttons
+        
+        hc.gridx = 4;
+        headerPanel.add(new JLabel(""), hc);
+        
+        GridBagConstraints headerGbc = new GridBagConstraints();
+        headerGbc.gridx = 0;
+        headerGbc.gridy = 0;
+        headerGbc.weightx = 1.0;
+        headerGbc.weighty = 0;
+        headerGbc.fill = GridBagConstraints.HORIZONTAL;
+        headerGbc.anchor = GridBagConstraints.NORTHWEST;
+        mappingsPanel.add(headerPanel, headerGbc);
+        
         String mappingsStr = properties.getOrDefault(RESPONSE_MAPPINGS, "").toString();
         
         if (!mappingsStr.trim().isEmpty()) {
             String[] mappings = mappingsStr.split(",");
-            int index = 0;
+            int index = 1; // Start at 1 because header is at 0
             for (String mapping : mappings) {
                 mapping = mapping.trim();
                 if (!mapping.isEmpty()) {
@@ -468,7 +586,7 @@ public class SendAndReceiveNode extends Node {
                 }
             }
         } else {
-            addResponseMappingRowAt(mappingsPanel, properties, allVars, "", "", 0);
+            addResponseMappingRowAt(mappingsPanel, properties, allVars, "", "", 1);
         }
         
         return mappingsPanel;
@@ -591,13 +709,17 @@ public class SendAndReceiveNode extends Node {
         Graph.printAtt(out, PATH_VARIABLES, this.getProperty(PATH_VARIABLES).toString());
         Graph.printAtt(out, QUERY_VARIABLES, this.getProperty(QUERY_VARIABLES).toString());
         Graph.printAtt(out, BODY_VARIABLES, this.getProperty(BODY_VARIABLES).toString());
+        Graph.printAtt(out, RESPONSE_MODE, this.getProperty(RESPONSE_MODE).toString());
         Graph.printAtt(out, RESPONSE_MAPPINGS, this.getProperty(RESPONSE_MAPPINGS).toString());
+        Graph.printAtt(out, RESPONSE_TARGET_VAR, this.getProperty(RESPONSE_TARGET_VAR).toString());
+        Graph.printAtt(out, RESPONSE_AS_STRING, this.getProperty(RESPONSE_AS_STRING).toString());
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
         if (name.equals(URL) || name.equals(HTTP_METHOD) || name.equals(PATH_VARIABLES) ||
-            name.equals(QUERY_VARIABLES) || name.equals(BODY_VARIABLES) || name.equals(RESPONSE_MAPPINGS)) {
+            name.equals(QUERY_VARIABLES) || name.equals(BODY_VARIABLES) || name.equals(RESPONSE_MODE) ||
+            name.equals(RESPONSE_MAPPINGS) || name.equals(RESPONSE_TARGET_VAR) || name.equals(RESPONSE_AS_STRING)) {
             this.setProperty(name, value);
         } else {
             super.readAttribute(r, name, value, uid_map);

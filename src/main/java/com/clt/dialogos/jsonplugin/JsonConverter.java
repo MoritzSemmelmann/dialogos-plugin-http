@@ -102,4 +102,81 @@ public class JsonConverter {
         }
         return obj;
     }
+
+    public static void mapJsonToVariables(JSONObject responseJson, String mappingsStr, Function<String, Slot> slotProvider) {
+        if (mappingsStr == null || mappingsStr.trim().isEmpty()) {
+            System.out.println("Warning: No response variable mappings specified");
+            return;
+        }
+        
+        String[] mappings = mappingsStr.split(",");
+        for (String mapping : mappings) {
+            mapping = mapping.trim();
+            if (mapping.isEmpty()) continue;
+            
+            String[] parts = mapping.split("=");
+            if (parts.length != 2) {
+                System.out.println("Warning: Invalid mapping format '" + mapping + "', expected 'jsonKey=varName'");
+                continue;
+            }
+            
+            String jsonKey = parts[0].trim();
+            String varName = parts[1].trim();
+            
+            try {
+                if (responseJson.has(jsonKey)) {
+                    Object jsonValue = responseJson.get(jsonKey);
+                    Value dialogosValue = jsonToValue(jsonValue);
+                    Slot targetSlot = slotProvider.apply(varName);
+                    if (targetSlot != null) {
+                        targetSlot.setValue(dialogosValue);
+                        System.out.println("  " + jsonKey + " -> " + varName + ": " + dialogosValue + " (" + dialogosValue.getType() + ")");
+                    } else {
+                        System.out.println("  ERROR: Variable '" + varName + "' not found");
+                    }
+                } else {
+                    System.out.println("  " + jsonKey + " not found in response JSON (skipping " + varName + ")");
+                }
+            } catch (Exception e) {
+                System.out.println("  ERROR: " + jsonKey + " -> " + varName + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Maps entire JSON response to a single variable as Struct or String.
+     * @param responseJson The JSON response object
+     * @param targetVarName The target variable name
+     * @param asString If true, stores as String; if false, stores as StructValue
+     * @param slotProvider Function to get a slot by variable name
+     */
+    public static void mapJsonToSingleVariable(JSONObject responseJson, String targetVarName, boolean asString, Function<String, Slot> slotProvider) {
+        if (targetVarName == null || targetVarName.trim().isEmpty()) {
+            System.out.println("Warning: No target variable specified");
+            return;
+        }
+        
+        try {
+            Slot targetSlot = slotProvider.apply(targetVarName.trim());
+            if (targetSlot == null) {
+                System.out.println("ERROR: Variable '" + targetVarName + "' not found");
+                return;
+            }
+            
+            Value value;
+            if (asString) {
+                // Store as String
+                value = new StringValue(responseJson.toString());
+                System.out.println("Response stored as String in variable '" + targetVarName + "'");
+            } else {
+                // Store as Struct
+                value = jsonToValue(responseJson);
+                System.out.println("Response stored as Struct in variable '" + targetVarName + "'");
+            }
+            
+            targetSlot.setValue(value);
+        } catch (Exception e) {
+            System.out.println("ERROR: Failed to map JSON to variable '" + targetVarName + "': " + e.getMessage());
+        }
+    }
 }
