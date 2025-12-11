@@ -4,11 +4,6 @@ import com.clt.diamant.*;
 import com.clt.diamant.graph.Graph;
 import com.clt.diamant.graph.Node;
 import com.clt.diamant.graph.nodes.NodeExecutionException;
-import com.clt.diamant.gui.NodePropertiesDialog;
-import com.clt.script.exp.Type;
-import com.clt.script.exp.Value;
-import com.clt.script.exp.types.StructType;
-import com.clt.script.exp.values.*;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
 import org.json.JSONObject;
@@ -20,23 +15,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class JsonNode extends Node {
+public class SendNode extends Node {
 
     private static final String VARIABLE_NAMES = "variableNames";
     private static final String HTTP_URL = "httpUrl";
+    private static final String HTTP_METHOD = "httpMethod";
     private static final String PATH_VARIABLES = "pathVariables";
     private static final String QUERY_PARAMETERS = "queryParameters";
 
-    public JsonNode() {
+    public SendNode() {
         this.addEdge(); 
         this.setProperty(VARIABLE_NAMES, "");
         this.setProperty(HTTP_URL, "");
+        this.setProperty(HTTP_METHOD, "POST");
         this.setProperty(PATH_VARIABLES, "");
         this.setProperty(QUERY_PARAMETERS, "");
     }
 
     public static String getNodeTypeName(Class<?> c) {
-        return "JSON Builder";
+        return "Send JSON";
     }
 
     @Override
@@ -45,6 +42,7 @@ public class JsonNode extends Node {
         
         try {
             String url = this.getProperty(HTTP_URL).toString();
+            String httpMethod = this.getProperty(HTTP_METHOD).toString();
             String pathVarsStr = this.getProperty(PATH_VARIABLES).toString();
             String queryParamsStr = this.getProperty(QUERY_PARAMETERS).toString();
             String varNamesStr = this.getProperty(VARIABLE_NAMES).toString().trim();
@@ -59,9 +57,10 @@ public class JsonNode extends Node {
             System.out.println("\n Generated JSON Body");
             System.out.println(jsonBody.toString(2));
 
-            // Send HTTP request with JSON object
+            // Send HTTP request with JSON object (ignore response)
             HttpHandler.sendHttpRequest(
                 url,
+                httpMethod,
                 pathVarMappings,
                 queryParamVars,
                 jsonBody,
@@ -93,10 +92,27 @@ public class JsonNode extends Node {
         gbc.fill = GridBagConstraints.BOTH;
         gbc.insets = new Insets(5, 5, 5, 5);
         
+        // HTTP Method dropdown
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.weightx = 0;
         gbc.weighty = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        mainPanel.add(new JLabel("HTTP Method:"), gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        String[] httpMethods = {"GET", "POST", "PUT", "DELETE", "PATCH"};
+        JComboBox<String> methodComboBox = new JComboBox<>(httpMethods);
+        methodComboBox.setSelectedItem(properties.getOrDefault(HTTP_METHOD, "POST"));
+        methodComboBox.addActionListener(e -> properties.put(HTTP_METHOD, methodComboBox.getSelectedItem()));
+        mainPanel.add(methodComboBox, gbc);
+        
+        // HTTP URL field
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.BOTH;
         mainPanel.add(new JLabel("HTTP URL:"), gbc);
         
         gbc.gridx = 1;
@@ -143,26 +159,27 @@ public class JsonNode extends Node {
         
         mainPanel.add(urlContainer, gbc);
         
-
+        // Query Parameters
         gbc.gridx = 0;
-        gbc.gridy = 1;
+        gbc.gridy = 2;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("Query Parameters:"), gbc);
         
-        gbc.gridy = 2;
+        gbc.gridy = 3;
         gbc.weighty = 0.5;
         JPanel queryParamsPanel = createVariablePanel(properties, QUERY_PARAMETERS);
         JScrollPane queryScrollPane = new JScrollPane(queryParamsPanel);
         queryScrollPane.setPreferredSize(new Dimension(400, 100));
         mainPanel.add(queryScrollPane, gbc);
         
-        gbc.gridy = 3;
+        // JSON Body Variables
+        gbc.gridy = 4;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("JSON Body Variables:"), gbc);
         
-        gbc.gridy = 4;
+        gbc.gridy = 5;
         gbc.weighty = 0.5;
         JPanel varsPanel = createVariablePanel(properties, VARIABLE_NAMES);
         JScrollPane scrollPane = new JScrollPane(varsPanel);
@@ -402,13 +419,14 @@ public class JsonNode extends Node {
     protected void writeAttributes(XMLWriter out, IdMap uid_map) {
         Graph.printAtt(out, VARIABLE_NAMES, this.getProperty(VARIABLE_NAMES).toString());
         Graph.printAtt(out, HTTP_URL, this.getProperty(HTTP_URL).toString());
+        Graph.printAtt(out, HTTP_METHOD, this.getProperty(HTTP_METHOD).toString());
         Graph.printAtt(out, PATH_VARIABLES, this.getProperty(PATH_VARIABLES).toString());
         Graph.printAtt(out, QUERY_PARAMETERS, this.getProperty(QUERY_PARAMETERS).toString());
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
-        if (name.equals(VARIABLE_NAMES) || name.equals(HTTP_URL) || 
+        if (name.equals(VARIABLE_NAMES) || name.equals(HTTP_URL) || name.equals(HTTP_METHOD) ||
             name.equals(PATH_VARIABLES) || name.equals(QUERY_PARAMETERS)) {
             this.setProperty(name, value);
         } else {
