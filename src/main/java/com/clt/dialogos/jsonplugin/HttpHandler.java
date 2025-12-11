@@ -3,14 +3,20 @@ package com.clt.dialogos.jsonplugin;
 import com.clt.diamant.Slot;
 import org.json.JSONObject;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
 public class HttpHandler {
     
-    public static void sendHttpRequest(
+    public static String sendHttpRequest(
             String baseUrl,
+            String httpMethod,
             String[] pathVarMappings,
             String[] queryParamVars,
             JSONObject jsonBody,
@@ -22,12 +28,67 @@ public class HttpHandler {
         
         String finalUrl = appendQueryParameters(url, queryParams);
         
+        System.out.println("Method: " + httpMethod);
         System.out.println("URL: " + finalUrl);
         System.out.println("\nJSON Body:");
         System.out.println(jsonBody.toString(2));
         
-        // TODO: Actual HTTP request implementation
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+            
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(finalUrl))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(30));
+            
+            switch (httpMethod.toUpperCase()) {
+                case "GET":
+                    requestBuilder.GET();
+                    break;
+                case "POST":
+                    requestBuilder.POST(HttpRequest.BodyPublishers.ofString(jsonBody.toString()));
+                    break;
+                case "PUT":
+                    requestBuilder.PUT(HttpRequest.BodyPublishers.ofString(jsonBody.toString()));
+                    break;
+                case "DELETE":
+                    requestBuilder.DELETE();
+                    break;
+                case "PATCH":
+                    requestBuilder.method("PATCH", HttpRequest.BodyPublishers.ofString(jsonBody.toString()));
+                    break;
+                default:
+                    requestBuilder.POST(HttpRequest.BodyPublishers.ofString(jsonBody.toString()));
+            }
+            
+            HttpRequest request = requestBuilder.build();
+            
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            System.out.println("Status Code: " + response.statusCode());
+            System.out.println("Headers: " + response.headers().map());
+            System.out.println("\nResponse Body:");
+            System.out.println(response.body());
+            
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                System.out.println("✓ HTTP request successful");
+                return response.body();
+            } else {
+                System.err.println("✗ HTTP request failed with status: " + response.statusCode());
+                throw new RuntimeException("HTTP request failed with status: " + response.statusCode());
+            }
+            
+        } catch (Exception e) {
+            System.err.println("\n✗ HTTP request failed: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("HTTP request failed: " + e.getMessage(), e);
+        }
     }
+    
+
     
     private static String buildUrlWithPathVariables(
             String baseUrl,
