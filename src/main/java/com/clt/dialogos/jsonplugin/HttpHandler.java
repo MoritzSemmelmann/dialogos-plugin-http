@@ -14,7 +14,21 @@ import java.util.function.Function;
 
 public class HttpHandler {
     
-    public static String sendHttpRequest(
+    public static class HttpResult {
+        public final boolean success;
+        public final String response;
+        public final int statusCode;
+        public final String errorMessage;
+        
+        public HttpResult(boolean success, String response, int statusCode, String errorMessage) {
+            this.success = success;
+            this.response = response;
+            this.statusCode = statusCode;
+            this.errorMessage = errorMessage;
+        }
+    }
+    
+    public static HttpResult sendHttpRequest(
             String baseUrl,
             String httpMethod,
             String[] pathVarMappings,
@@ -75,16 +89,16 @@ public class HttpHandler {
             
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 System.out.println("✓ HTTP request successful");
-                return response.body();
+                return new HttpResult(true, response.body(), response.statusCode(), null);
             } else {
                 System.err.println("✗ HTTP request failed with status: " + response.statusCode());
-                throw new RuntimeException("HTTP request failed with status: " + response.statusCode());
+                return new HttpResult(false, response.body(), response.statusCode(), "HTTP " + response.statusCode());
             }
             
         } catch (Exception e) {
             System.err.println("\n✗ HTTP request failed: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("HTTP request failed: " + e.getMessage(), e);
+            return new HttpResult(false, null, 0, e.getMessage());
         }
     }
     

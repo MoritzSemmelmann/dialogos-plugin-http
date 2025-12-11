@@ -28,7 +28,8 @@ public class SendAndReceiveNode extends Node {
     private static final String RESPONSE_AS_STRING = "responseAsString";
 
     public SendAndReceiveNode() {
-        this.addEdge();
+        this.addEdge("Success");
+        this.addEdge("Error");
         this.setProperty(URL, "");
         this.setProperty(HTTP_METHOD, "GET");
         this.setProperty(PATH_VARIABLES, "");
@@ -62,8 +63,14 @@ public class SendAndReceiveNode extends Node {
             String[] queryVars = queryVarsStr.isEmpty() ? new String[0] : queryVarsStr.split(",");
 
             // Send HTTP request and get response
-            String response = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot);
-            JSONObject responseJson = new JSONObject(response);
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot);
+            
+            if (!result.success) {
+                System.err.println("HTTP request failed: " + result.errorMessage);
+                return getEdge(1).getTarget();
+            }
+            
+            JSONObject responseJson = new JSONObject(result.response);
 
             // Map response based on mode
             String responseMode = this.getProperty(RESPONSE_MODE).toString();
@@ -77,12 +84,13 @@ public class SendAndReceiveNode extends Node {
                 String mappingsStr = this.getProperty(RESPONSE_MAPPINGS).toString().trim();
                 JsonConverter.mapJsonToVariables(responseJson, mappingsStr, this::getSlot);
             }
-        } catch (NodeExecutionException e) {
-            throw e;
+            
+            return getEdge(0).getTarget();
+            
         } catch (Exception e) {
-            throw new NodeExecutionException(this, "Failed to send/receive JSON: " + e.getMessage(), e);
+            System.err.println("Error in SendAndReceiveNode: " + e.getMessage());
+            return getEdge(1).getTarget();
         }
-        return getEdge(0).getTarget();
     }
 
     private Slot getSlot(String name) {
@@ -575,7 +583,7 @@ public class SendAndReceiveNode extends Node {
         
         if (!mappingsStr.trim().isEmpty()) {
             String[] mappings = mappingsStr.split(",");
-            int index = 1; // Start at 1 because header is at 0
+            int index = 1;
             for (String mapping : mappings) {
                 mapping = mapping.trim();
                 if (!mapping.isEmpty()) {

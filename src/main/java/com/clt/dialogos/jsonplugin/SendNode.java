@@ -24,7 +24,8 @@ public class SendNode extends Node {
     private static final String QUERY_PARAMETERS = "queryParameters";
 
     public SendNode() {
-        this.addEdge(); 
+        this.addEdge("Success");
+        this.addEdge("Error");
         this.setProperty(VARIABLE_NAMES, "");
         this.setProperty(HTTP_URL, "");
         this.setProperty(HTTP_METHOD, "POST");
@@ -57,8 +58,8 @@ public class SendNode extends Node {
             System.out.println("\n Generated JSON Body");
             System.out.println(jsonBody.toString(2));
 
-            // Send HTTP request with JSON object (ignore response)
-            HttpHandler.sendHttpRequest(
+            // Send HTTP request with JSON object
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(
                 url,
                 httpMethod,
                 pathVarMappings,
@@ -67,13 +68,16 @@ public class SendNode extends Node {
                 this::getSlot
             );
             
-        } catch (NodeExecutionException e) {
-            throw e;
+            if (result.success) {
+                return getEdge(0).getTarget(); // Success edge
+            } else {
+                return getEdge(1).getTarget(); // Error edge
+            }
+            
         } catch (Exception e) {
-            throw new NodeExecutionException(this, "Failed to send HTTP request: " + e.getMessage(), e);
+            System.err.println("Error in SendNode: " + e.getMessage());
+            return getEdge(1).getTarget(); // Error edge
         }
-        
-        return getEdge(0).getTarget();
     }
 
     private Slot getSlot(String name) {
