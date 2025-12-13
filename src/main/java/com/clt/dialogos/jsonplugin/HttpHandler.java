@@ -34,7 +34,10 @@ public class HttpHandler {
             String[] pathVarMappings,
             String[] queryParamVars,
             JSONObject jsonBody,
-            Function<String, Slot> slotProvider) {
+            Function<String, Slot> slotProvider,
+            String authType,
+            String authValue,
+            String customHeaders) {
         
         String url = buildUrlWithPathVariables(baseUrl, pathVarMappings, slotProvider);
         
@@ -58,6 +61,10 @@ public class HttpHandler {
                 .header("Accept", "application/json")
                 .timeout(Duration.ofSeconds(30));
             
+            addAuthorizationHeader(requestBuilder, authType, authValue, slotProvider);
+            
+            addCustomHeaders(requestBuilder, customHeaders, slotProvider);
+            
             switch (httpMethod.toUpperCase()) {
                 case "GET":
                     requestBuilder.GET();
@@ -80,7 +87,14 @@ public class HttpHandler {
             
             HttpRequest request = requestBuilder.build();
             
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response;
+            try {
+                response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.err.println("\n✗ HTTP request interrupted");
+                return new HttpResult(false, null, 0, "Request interrupted");
+            }
             
             System.out.println("Status Code: " + response.statusCode());
             System.out.println("Headers: " + response.headers().map());
@@ -95,6 +109,10 @@ public class HttpHandler {
                 return new HttpResult(false, response.body(), response.statusCode(), "HTTP " + response.statusCode());
             }
             
+        } catch (java.io.IOException e) {
+            System.err.println("\n✗ HTTP request IO error: " + e.getMessage());
+            e.printStackTrace();
+            return new HttpResult(false, null, 0, "IO Error: " + e.getMessage());
         } catch (Exception e) {
             System.err.println("\n✗ HTTP request failed: " + e.getMessage());
             e.printStackTrace();
@@ -171,5 +189,93 @@ public class HttpHandler {
         }
         
         return sb.toString();
+    }
+    
+    private static void addAuthorizationHeader(
+            HttpRequest.Builder requestBuilder,
+            String authType,
+            String authValue,
+            Function<String, Slot> slotProvider) {
+        
+        if (authType == null || authType.isEmpty() || authType.equals("None")) {
+            return;
+        }
+        
+        authValue = resolveVariables(authValue, slotProvider);
+        
+        switch (authType) {
+            case "Bearer Token":
+                if (authValue != null && !authValue.isEmpty()) {
+                    requestBuilder.header("Authorization", "Bearer " + authValue);
+                    System.out.println("Authorization: Bearer Token");
+                }
+                break;
+            case "Basic Auth":
+                if (authValue != null && !authValue.isEmpty()) {
+                    String encoded = java.util.Base64.getEncoder().encodeToString(authValue.getBytes());
+                    requestBuilder.header("Authorization", "Basic " + encoded);
+                    System.out.println("Authorization: Basic Auth (credentials: " + authValue + ")");
+                    System.out.println("Authorization header: Basic " + encoded);
+                }
+                break;
+            case "API Key":
+                if (authValue != null && !authValue.isEmpty()) {
+                    String[] parts = authValue.split(":", 2);
+                    if (parts.length == 2) {
+                        requestBuilder.header(parts[0].trim(), parts[1].trim());
+                        System.out.println("API Key: " + parts[0].trim());
+                    }
+                }
+                break;
+        }
+    }
+    
+    private static void addCustomHeaders(
+            HttpRequest.Builder requestBuilder,
+            String customHeaders,
+            Function<String, Slot> slotProvider) {
+        
+        if (customHeaders == null || customHeaders.trim().isEmpty()) {
+            return;
+        }
+        
+        String[] headers = customHeaders.split(",");
+        for (String header : headers) {
+            header = header.trim();
+            if (header.isEmpty()) continue;
+            
+            String[] parts = header.split("=", 2);
+            if (parts.length == 2) {
+                String key = parts[0].trim();
+                String value = resolveVariables(parts[1].trim(), slotProvider);
+                requestBuilder.header(key, value);
+                System.out.println("Custom Header: " + key + " = " + value);
+            }
+        }
+    }
+    
+    private static String resolveVariables(String value, Function<String, Slot> slotProvider) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        
+        String result = value;
+        int start = 0;
+        while ((start = result.indexOf("${", start)) != -1) {
+            int end = result.indexOf("}", start);
+            if (end == -1) break;
+            
+            String varName = result.substring(start + 2, end);
+            Slot slot = slotProvider.apply(varName);
+            if (slot != null) {
+                String varValue = slot.getValue().toString();
+                result = result.substring(0, start) + varValue + result.substring(end + 1);
+                start += varValue.length();
+            } else {
+                start = end + 1;
+            }
+        }
+        
+        return result;
     }
 }

@@ -26,6 +26,9 @@ public class SendAndReceiveNode extends Node {
     private static final String RESPONSE_MAPPINGS = "responseMappings";
     private static final String RESPONSE_TARGET_VAR = "responseTargetVar";
     private static final String RESPONSE_AS_STRING = "responseAsString";
+    private static final String AUTH_TYPE = "authType";
+    private static final String AUTH_VALUE = "authValue";
+    private static final String CUSTOM_HEADERS = "customHeaders";
 
     public SendAndReceiveNode() {
         this.addEdge("Success");
@@ -43,6 +46,9 @@ public class SendAndReceiveNode extends Node {
         this.setProperty(RESPONSE_MAPPINGS, "");
         this.setProperty(RESPONSE_TARGET_VAR, "");
         this.setProperty(RESPONSE_AS_STRING, "false");
+        this.setProperty(AUTH_TYPE, "None");
+        this.setProperty(AUTH_VALUE, "");
+        this.setProperty(CUSTOM_HEADERS, "");
     }
 
     public static String getNodeTypeName(Class<?> c) {
@@ -66,8 +72,12 @@ public class SendAndReceiveNode extends Node {
             String queryVarsStr = this.getProperty(QUERY_VARIABLES).toString().trim();
             String[] queryVars = queryVarsStr.isEmpty() ? new String[0] : queryVarsStr.split(",");
 
+            String authType = this.getProperty(AUTH_TYPE).toString();
+            String authValue = this.getProperty(AUTH_VALUE).toString();
+            String customHeaders = this.getProperty(CUSTOM_HEADERS).toString();
+            
             // Send HTTP request and get response
-            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot);
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot, authType, authValue, customHeaders);
             
             if (!result.success) {
                 System.err.println("HTTP request failed: " + result.errorMessage);
@@ -216,12 +226,33 @@ public class SendAndReceiveNode extends Node {
         queryScrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(queryScrollPane, gbc);
         
-        // JSON Body Variables
+        // Authorization Section
         gbc.gridy = 4;
+        gbc.weighty = 0;
+        mainPanel.add(new JLabel("Authorization:"), gbc);
+        
+        gbc.gridy = 5;
+        gbc.weighty = 0;
+        mainPanel.add(createAuthorizationPanel(properties), gbc);
+        
+        // Custom Headers
+        gbc.gridy = 6;
+        gbc.weighty = 0;
+        mainPanel.add(new JLabel("Custom Headers:"), gbc);
+        
+        gbc.gridy = 7;
+        gbc.weighty = 0.2;
+        JPanel headersPanel = createHeadersPanel(properties);
+        JScrollPane headersScrollPane = new JScrollPane(headersPanel);
+        headersScrollPane.setPreferredSize(new Dimension(400, 60));
+        mainPanel.add(headersScrollPane, gbc);
+        
+        // JSON Body Variables
+        gbc.gridy = 8;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("JSON Body Variables:"), gbc);
         
-        gbc.gridy = 5;
+        gbc.gridy = 9;
         gbc.weighty = 0.3;
         JPanel varsPanel = createVariablePanel(properties, BODY_VARIABLES);
         JScrollPane scrollPane = new JScrollPane(varsPanel);
@@ -229,11 +260,11 @@ public class SendAndReceiveNode extends Node {
         mainPanel.add(scrollPane, gbc);
         
         // Response Mode Selection
-        gbc.gridy = 6;
+        gbc.gridy = 10;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("Response Mode:"), gbc);
         
-        gbc.gridy = 7;
+        gbc.gridy = 11;
         gbc.weighty = 0;
         JPanel responseModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         ButtonGroup modeGroup = new ButtonGroup();
@@ -254,7 +285,7 @@ public class SendAndReceiveNode extends Node {
         mainPanel.add(responseModePanel, gbc);
         
         // response configuration
-        gbc.gridy = 8;
+        gbc.gridy = 12;
         gbc.weighty = 0.3;
         JPanel responseConfigContainer = new JPanel(new CardLayout());
         
@@ -735,6 +766,331 @@ public class SendAndReceiveNode extends Node {
         properties.put(RESPONSE_MAPPINGS, String.join(", ", mappings));
     }
 
+    private JPanel createAuthorizationPanel(Map<String, Object> properties) {
+        JPanel authPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2, 2, 2, 2);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        // Auth Type Dropdown
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0;
+        authPanel.add(new JLabel("Type:"), gbc);
+        
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 3;
+        String[] authTypes = {"None", "Bearer Token", "Basic Auth", "API Key"};
+        JComboBox<String> authTypeCombo = new JComboBox<>(authTypes);
+        authTypeCombo.setSelectedItem(properties.getOrDefault(AUTH_TYPE, "None"));
+        authPanel.add(authTypeCombo, gbc);
+        
+        // Container for dynamic fields
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        JPanel fieldsContainer = new JPanel(new CardLayout());
+        authPanel.add(fieldsContainer, gbc);
+        
+        // None panel (empty)
+        JPanel nonePanel = new JPanel();
+        fieldsContainer.add(nonePanel, "None");
+        
+        // Bearer Token panel
+        JPanel bearerPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints bc = new GridBagConstraints();
+        bc.insets = new Insets(2, 2, 2, 2);
+        bc.fill = GridBagConstraints.HORIZONTAL;
+        bc.gridx = 0;
+        bc.gridy = 0;
+        bc.weightx = 0;
+        bearerPanel.add(new JLabel("Token:"), bc);
+        bc.gridx = 1;
+        bc.weightx = 1.0;
+        JTextField bearerTokenField = new JTextField();
+        bearerTokenField.setToolTipText("Enter token or ${variableName}");
+        bearerPanel.add(bearerTokenField, bc);
+        fieldsContainer.add(bearerPanel, "Bearer Token");
+        
+        // Basic Auth panel
+        JPanel basicPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints bac = new GridBagConstraints();
+        bac.insets = new Insets(2, 2, 2, 2);
+        bac.fill = GridBagConstraints.HORIZONTAL;
+        bac.gridx = 0;
+        bac.gridy = 0;
+        bac.weightx = 0;
+        basicPanel.add(new JLabel("Username:"), bac);
+        bac.gridx = 1;
+        bac.weightx = 1.0;
+        JTextField usernameField = new JTextField();
+        usernameField.setToolTipText("Enter username or ${variableName}");
+        basicPanel.add(usernameField, bac);
+        bac.gridx = 0;
+        bac.gridy = 1;
+        bac.weightx = 0;
+        basicPanel.add(new JLabel("Password:"), bac);
+        bac.gridx = 1;
+        bac.weightx = 1.0;
+        JPasswordField passwordField = new JPasswordField();
+        passwordField.setToolTipText("Enter password or ${variableName}");
+        basicPanel.add(passwordField, bac);
+        fieldsContainer.add(basicPanel, "Basic Auth");
+        
+        // API Key panel
+        JPanel apiKeyPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints akc = new GridBagConstraints();
+        akc.insets = new Insets(2, 2, 2, 2);
+        akc.fill = GridBagConstraints.HORIZONTAL;
+        akc.gridx = 0;
+        akc.gridy = 0;
+        akc.weightx = 0;
+        apiKeyPanel.add(new JLabel("Header Name:"), akc);
+        akc.gridx = 1;
+        akc.weightx = 1.0;
+        JTextField headerNameField = new JTextField();
+        headerNameField.setToolTipText("e.g., x-api-key");
+        apiKeyPanel.add(headerNameField, akc);
+        akc.gridx = 0;
+        akc.gridy = 1;
+        akc.weightx = 0;
+        apiKeyPanel.add(new JLabel("Value:"), akc);
+        akc.gridx = 1;
+        akc.weightx = 1.0;
+        JTextField apiKeyValueField = new JTextField();
+        apiKeyValueField.setToolTipText("Enter API key or ${variableName}");
+        apiKeyPanel.add(apiKeyValueField, akc);
+        fieldsContainer.add(apiKeyPanel, "API Key");
+        
+        // Parse existing AUTH_VALUE and populate fields
+        String authValue = properties.getOrDefault(AUTH_VALUE, "").toString();
+        String authType = properties.getOrDefault(AUTH_TYPE, "None").toString();
+        
+        if ("Bearer Token".equals(authType)) {
+            bearerTokenField.setText(authValue);
+        } else if ("Basic Auth".equals(authType)) {
+            String[] parts = authValue.split(":", 2);
+            if (parts.length >= 1) usernameField.setText(parts[0]);
+            if (parts.length >= 2) passwordField.setText(parts[1]);
+        } else if ("API Key".equals(authType)) {
+            String[] parts = authValue.split(":", 2);
+            if (parts.length >= 1) headerNameField.setText(parts[0]);
+            if (parts.length >= 2) apiKeyValueField.setText(parts[1]);
+        }
+        
+        // Update listeners
+        bearerTokenField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
+        });
+        
+        javax.swing.event.DocumentListener basicAuthListener = new javax.swing.event.DocumentListener() {
+            private void update() {
+                properties.put(AUTH_VALUE, usernameField.getText() + ":" + new String(passwordField.getPassword()));
+            }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        };
+        usernameField.getDocument().addDocumentListener(basicAuthListener);
+        passwordField.getDocument().addDocumentListener(basicAuthListener);
+        
+        javax.swing.event.DocumentListener apiKeyListener = new javax.swing.event.DocumentListener() {
+            private void update() {
+                properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getText());
+            }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        };
+        headerNameField.getDocument().addDocumentListener(apiKeyListener);
+        apiKeyValueField.getDocument().addDocumentListener(apiKeyListener);
+        
+        // Switch panel based on selection
+        authTypeCombo.addActionListener(e -> {
+            String selectedType = (String) authTypeCombo.getSelectedItem();
+            properties.put(AUTH_TYPE, selectedType);
+            CardLayout cl = (CardLayout) fieldsContainer.getLayout();
+            cl.show(fieldsContainer, selectedType);
+        });
+        
+        // Show initial panel
+        CardLayout cl = (CardLayout) fieldsContainer.getLayout();
+        cl.show(fieldsContainer, authType);
+        
+        return authPanel;
+    }
+    
+    private JPanel createHeadersPanel(Map<String, Object> properties) {
+        JPanel headersPanel = new JPanel();
+        headersPanel.setLayout(new BoxLayout(headersPanel, BoxLayout.Y_AXIS));
+        
+        String headersStr = properties.getOrDefault(CUSTOM_HEADERS, "").toString();
+        Map<String, String> existingHeaders = new java.util.HashMap<>();
+        if (!headersStr.isEmpty()) {
+            for (String header : headersStr.split(",")) {
+                String[] parts = header.split("=", 2);
+                if (parts.length == 2) {
+                    existingHeaders.put(parts[0].trim(), parts[1].trim());
+                }
+            }
+        }
+        
+        for (Map.Entry<String, String> entry : existingHeaders.entrySet()) {
+            addHeaderRow(headersPanel, properties, entry.getKey(), entry.getValue());
+        }
+        
+        if (existingHeaders.isEmpty()) {
+            addHeaderRow(headersPanel, properties, "", "");
+        }
+        
+        return headersPanel;
+    }
+    
+    private void addHeaderRow(JPanel headersPanel, Map<String, Object> properties, String key, String value) {
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(2, 2, 2, 2);
+        
+        c.gridx = 0;
+        c.weightx = 0.4;
+        JTextField keyField = new JTextField(key);
+        keyField.setToolTipText("Header name (e.g., x-api-key)");
+        rowPanel.add(keyField, c);
+        
+        c.gridx = 1;
+        c.weightx = 0.5;
+        JTextField valueField = new JTextField(value);
+        valueField.setToolTipText("Header value (supports ${variableName})");
+        rowPanel.add(valueField, c);
+        
+        c.gridx = 2;
+        c.weightx = 0;
+        JButton plusButton = new JButton("+");
+        plusButton.addActionListener(e -> {
+            int idx = getRowIndex(headersPanel, rowPanel);
+            addHeaderRowAt(headersPanel, properties, "", "", idx + 1);
+            headersPanel.revalidate();
+            headersPanel.repaint();
+            updateCustomHeaders(headersPanel, properties);
+        });
+        rowPanel.add(plusButton, c);
+        
+        c.gridx = 3;
+        JButton minusButton = new JButton("-");
+        minusButton.addActionListener(e -> {
+            headersPanel.remove(rowPanel);
+            headersPanel.revalidate();
+            headersPanel.repaint();
+            updateCustomHeaders(headersPanel, properties);
+        });
+        rowPanel.add(minusButton, c);
+        
+        javax.swing.event.DocumentListener docListener = new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            private void update() {
+                updateCustomHeaders(headersPanel, properties);
+            }
+        };
+        keyField.getDocument().addDocumentListener(docListener);
+        valueField.getDocument().addDocumentListener(docListener);
+        
+        headersPanel.add(rowPanel);
+    }
+    
+    private void addHeaderRowAt(JPanel headersPanel, Map<String, Object> properties, String key, String value, int index) {
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(2, 2, 2, 2);
+        
+        c.gridx = 0;
+        c.weightx = 0.4;
+        JTextField keyField = new JTextField(key);
+        keyField.setToolTipText("Header name (e.g., x-api-key)");
+        rowPanel.add(keyField, c);
+        
+        c.gridx = 1;
+        c.weightx = 0.5;
+        JTextField valueField = new JTextField(value);
+        valueField.setToolTipText("Header value (supports ${variableName})");
+        rowPanel.add(valueField, c);
+        
+        c.gridx = 2;
+        c.weightx = 0;
+        JButton plusButton = new JButton("+");
+        plusButton.addActionListener(e -> {
+            int idx = getRowIndex(headersPanel, rowPanel);
+            addHeaderRowAt(headersPanel, properties, "", "", idx + 1);
+            headersPanel.revalidate();
+            headersPanel.repaint();
+            updateCustomHeaders(headersPanel, properties);
+        });
+        rowPanel.add(plusButton, c);
+        
+        c.gridx = 3;
+        JButton minusButton = new JButton("-");
+        minusButton.addActionListener(e -> {
+            headersPanel.remove(rowPanel);
+            headersPanel.revalidate();
+            headersPanel.repaint();
+            updateCustomHeaders(headersPanel, properties);
+        });
+        rowPanel.add(minusButton, c);
+        
+        javax.swing.event.DocumentListener docListener = new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            private void update() {
+                updateCustomHeaders(headersPanel, properties);
+            }
+        };
+        keyField.getDocument().addDocumentListener(docListener);
+        valueField.getDocument().addDocumentListener(docListener);
+        
+        headersPanel.add(rowPanel, index);
+    }
+    
+    private void updateCustomHeaders(JPanel headersPanel, Map<String, Object> properties) {
+        List<String> headers = new ArrayList<>();
+        
+        for (Component comp : headersPanel.getComponents()) {
+            if (comp instanceof JPanel) {
+                JPanel rowPanel = (JPanel) comp;
+                JTextField keyField = null;
+                JTextField valueField = null;
+                
+                for (Component rowComp : rowPanel.getComponents()) {
+                    if (rowComp instanceof JTextField) {
+                        if (keyField == null) {
+                            keyField = (JTextField) rowComp;
+                        } else {
+                            valueField = (JTextField) rowComp;
+                            break;
+                        }
+                    }
+                }
+                
+                if (keyField != null && valueField != null) {
+                    String key = keyField.getText().trim();
+                    String value = valueField.getText().trim();
+                    if (!key.isEmpty() && !value.isEmpty()) {
+                        headers.add(key + "=" + value);
+                    }
+                }
+            }
+        }
+        
+        properties.put(CUSTOM_HEADERS, String.join(",", headers));
+    }
+
     @Override
     protected void writeAttributes(XMLWriter out, IdMap uid_map) {
         Graph.printAtt(out, URL, this.getProperty(URL).toString());
@@ -746,13 +1102,17 @@ public class SendAndReceiveNode extends Node {
         Graph.printAtt(out, RESPONSE_MAPPINGS, this.getProperty(RESPONSE_MAPPINGS).toString());
         Graph.printAtt(out, RESPONSE_TARGET_VAR, this.getProperty(RESPONSE_TARGET_VAR).toString());
         Graph.printAtt(out, RESPONSE_AS_STRING, this.getProperty(RESPONSE_AS_STRING).toString());
+        Graph.printAtt(out, AUTH_TYPE, this.getProperty(AUTH_TYPE).toString());
+        Graph.printAtt(out, AUTH_VALUE, this.getProperty(AUTH_VALUE).toString());
+        Graph.printAtt(out, CUSTOM_HEADERS, this.getProperty(CUSTOM_HEADERS).toString());
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
         if (name.equals(URL) || name.equals(HTTP_METHOD) || name.equals(PATH_VARIABLES) ||
             name.equals(QUERY_VARIABLES) || name.equals(BODY_VARIABLES) || name.equals(RESPONSE_MODE) ||
-            name.equals(RESPONSE_MAPPINGS) || name.equals(RESPONSE_TARGET_VAR) || name.equals(RESPONSE_AS_STRING)) {
+            name.equals(RESPONSE_MAPPINGS) || name.equals(RESPONSE_TARGET_VAR) || name.equals(RESPONSE_AS_STRING) ||
+            name.equals(AUTH_TYPE) || name.equals(AUTH_VALUE) || name.equals(CUSTOM_HEADERS)) {
             this.setProperty(name, value);
         } else {
             super.readAttribute(r, name, value, uid_map);
