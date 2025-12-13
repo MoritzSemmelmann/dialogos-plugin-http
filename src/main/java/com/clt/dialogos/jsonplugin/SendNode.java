@@ -26,6 +26,10 @@ public class SendNode extends Node {
     public SendNode() {
         this.addEdge("Success");
         this.addEdge("Error");
+        
+        this.getEdge(0).setColor(new Color(0, 150, 0));
+        this.getEdge(1).setColor(new Color(200, 0, 0)); 
+        
         this.setProperty(VARIABLE_NAMES, "");
         this.setProperty(HTTP_URL, "");
         this.setProperty(HTTP_METHOD, "POST");
@@ -456,5 +460,15 @@ public class SendNode extends Node {
         } else {
             super.readAttribute(r, name, value, uid_map);
         }
+    }
+    
+    @Override
+    public Color getPortColor(int portNumber) {
+        if (portNumber == 0) {
+            return new Color(0, 150, 0); // Success - green
+        } else if (portNumber == 1) {
+            return new Color(200, 0, 0); // Error - red
+        }
+        return super.getPortColor(portNumber);
     }
 }
