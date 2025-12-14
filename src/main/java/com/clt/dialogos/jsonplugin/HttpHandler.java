@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -90,6 +91,11 @@ public class HttpHandler {
             HttpResponse<String> response;
             try {
                 response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            } catch (HttpTimeoutException e) {
+                System.err.println("\n✗ HTTP request timed out after 30 seconds");
+                System.err.println("The server did not respond within the timeout period.");
+                e.printStackTrace();
+                return new HttpResult(false, null, 408, "Timeout: Server did not respond within 30 seconds");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 System.err.println("\n✗ HTTP request interrupted");
@@ -109,6 +115,16 @@ public class HttpHandler {
                 return new HttpResult(false, response.body(), response.statusCode(), "HTTP " + response.statusCode());
             }
             
+        } catch (java.net.ConnectException e) {
+            System.err.println("\n✗ Connection refused: The server is not reachable");
+            System.err.println("Possible reasons: Wrong URL, server offline, firewall blocking");
+            e.printStackTrace();
+            return new HttpResult(false, null, 503, "Connection refused: Server not reachable");
+        } catch (java.net.UnknownHostException e) {
+            System.err.println("\n✗ Unknown host: The domain could not be resolved");
+            System.err.println("Check if the URL is correct and you have internet connection");
+            e.printStackTrace();
+            return new HttpResult(false, null, 0, "Unknown host: Domain not found");
         } catch (java.io.IOException e) {
             System.err.println("\n✗ HTTP request IO error: " + e.getMessage());
             e.printStackTrace();

@@ -118,6 +118,18 @@ public class SendAndReceiveNode extends Node {
 
     @Override
     public JComponent createEditorComponent(Map<String, Object> properties) {
+        JTabbedPane tabs = new JTabbedPane();
+        
+        // Tab 1: Send
+        tabs.addTab("Send", createSendPanel(properties));
+        
+        // Tab 2: Receive
+        tabs.addTab("Receive", createReceivePanel(properties));
+        
+        return tabs;
+    }
+    
+    private JPanel createSendPanel(Map<String, Object> properties) {
         JPanel mainPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.BOTH;
@@ -259,12 +271,24 @@ public class SendAndReceiveNode extends Node {
         scrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(scrollPane, gbc);
         
+        return mainPanel;
+    }
+    
+    private JPanel createReceivePanel(Map<String, Object> properties) {
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.gridwidth = 2;
+        
         // Response Mode Selection
-        gbc.gridy = 10;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("Response Mode:"), gbc);
         
-        gbc.gridy = 11;
+        gbc.gridy = 1;
         gbc.weighty = 0;
         JPanel responseModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         ButtonGroup modeGroup = new ButtonGroup();
@@ -285,8 +309,8 @@ public class SendAndReceiveNode extends Node {
         mainPanel.add(responseModePanel, gbc);
         
         // response configuration
-        gbc.gridy = 12;
-        gbc.weighty = 0.3;
+        gbc.gridy = 2;
+        gbc.weighty = 1.0;
         JPanel responseConfigContainer = new JPanel(new CardLayout());
         
         // Multiple variables panel
