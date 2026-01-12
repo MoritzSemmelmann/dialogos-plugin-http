@@ -152,13 +152,16 @@ public class HttpHandler {
             String[] parts = mapping.split("=");
             if (parts.length == 2) {
                 String pathVarName = parts[0].trim();
-                String variableName = parts[1].trim();
+                String varOrValue = parts[1].trim();
                 
-                Slot slot = slotProvider.apply(variableName);
+                Slot slot = slotProvider.apply(varOrValue);
                 if (slot != null) {
                     String value = slot.getValue().toString();
                     url = url.replace("{" + pathVarName + "}", value);
-                    System.out.println("Path variable: {" + pathVarName + "} = " + value);
+                    System.out.println("Path variable: {" + pathVarName + "} = " + value + " (from variable: " + varOrValue + ")");
+                } else {
+                    url = url.replace("{" + pathVarName + "}", varOrValue);
+                    System.out.println("Path variable: {" + pathVarName + "} = " + varOrValue + " (literal value)");
                 }
             }
         }
@@ -174,13 +177,16 @@ public class HttpHandler {
         
         for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
             String paramKey = entry.getKey();
-            String varName = entry.getValue();
+            String varOrValue = entry.getValue();
             
-            Slot slot = slotProvider.apply(varName);
+            Slot slot = slotProvider.apply(varOrValue);
             if (slot != null) {
                 String value = slot.getValue().toString();
                 params.put(paramKey, value);
-                System.out.println("Query parameter: " + paramKey + " = " + value + " (from variable: " + varName + ")");
+                System.out.println("Query parameter: " + paramKey + " = " + value + " (from variable: " + varOrValue + ")");
+            } else {
+                params.put(paramKey, varOrValue);
+                System.out.println("Query parameter: " + paramKey + " = " + varOrValue + " (literal value)");
             }
         }
         

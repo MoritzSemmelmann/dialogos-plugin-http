@@ -43,14 +43,17 @@ public class JsonConverter {
         
         for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
             String jsonKey = entry.getKey();
-            String varName = entry.getValue();
+            String varOrValue = entry.getValue();
             
-            Slot slot = slotProvider.apply(varName);
+            Slot slot = slotProvider.apply(varOrValue);
             if (slot != null) {
                 Value value = slot.getValue();
                 String jsonStr = value.toJson();
                 Object jsonValue = parseJsonString(jsonStr);
                 jsonObject.put(jsonKey, jsonValue);
+            } else {
+                Object literalValue = parseLiteralValue(varOrValue);
+                jsonObject.put(jsonKey, literalValue);
             }
         }
         
@@ -74,6 +77,33 @@ public class JsonConverter {
                 return jsonStr;
             }
         }
+    }
+    
+    private static Object parseLiteralValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        
+        try {
+            if (value.contains(".")) {
+                return Double.parseDouble(value);
+            } else {
+                return Long.parseLong(value);
+            }
+        } catch (NumberFormatException e) {
+        }
+        
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        
+        if ("null".equalsIgnoreCase(value)) {
+            return JSONObject.NULL;
+        }
+        return value;
     }
 
     public static void mapJsonToVariables(JSONObject responseJson, String mappingsStr, Function<String, Slot> slotProvider) {

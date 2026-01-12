@@ -63,7 +63,7 @@ public class SendAndReceiveNode extends Node {
             // Build JSON body
             String bodyVarsStr = this.getProperty(BODY_VARIABLES).toString().trim();
             Map<String, String> bodyVarMappings = parseMappingsToMap(bodyVarsStr);
-            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlot);
+            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
 
             // Get URL, method, path/query variables
             String url = this.getProperty(URL).toString().trim();
@@ -78,7 +78,7 @@ public class SendAndReceiveNode extends Node {
             String customHeaders = this.getProperty(CUSTOM_HEADERS).toString();
             
             // Send HTTP request and get response
-            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVarMappings, jsonBody, this::getSlot, authType, authValue, customHeaders);
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVarMappings, jsonBody, this::getSlotOrNull, authType, authValue, customHeaders);
             
             if (!result.success) {
                 System.err.println("HTTP request failed: " + result.errorMessage);
@@ -114,6 +114,15 @@ public class SendAndReceiveNode extends Node {
                 return slot;
         }
         throw new NodeExecutionException(this, "Unable to find variable: " + name);
+    }
+    
+    private Slot getSlotOrNull(String name) {
+        List<Slot> slots = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : slots) {
+            if (name.equals(slot.getName()))
+                return slot;
+        }
+        return null;
     }
     
     private Map<String, String> parseMappingsToMap(String mappingsStr) {
@@ -462,6 +471,7 @@ public class SendAndReceiveNode extends Node {
         c.gridx = 1;
         c.weightx = 0.7;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem("");
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
@@ -686,6 +696,7 @@ public class SendAndReceiveNode extends Node {
         c.gridx = 0;
         c.weightx = 1.0;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem(""); 
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
@@ -762,6 +773,7 @@ public class SendAndReceiveNode extends Node {
         c.gridx = 1;
         c.weightx = 0.6;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem(""); 
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());

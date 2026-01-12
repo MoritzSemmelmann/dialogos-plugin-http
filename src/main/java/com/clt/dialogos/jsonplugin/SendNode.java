@@ -68,7 +68,7 @@ public class SendNode extends Node {
             Map<String, String> bodyVarMappings = parseMappingsToMap(varNamesStr);
             
             // Build JSON object from body variables
-            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlot);
+            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
             
             System.out.println("\n Generated JSON Body");
             System.out.println(jsonBody.toString(2));
@@ -84,7 +84,7 @@ public class SendNode extends Node {
                 pathVarMappings,
                 queryParamMappings,
                 jsonBody,
-                this::getSlot,
+                this::getSlotOrNull,
                 authType,
                 authValue,
                 customHeaders
@@ -109,6 +109,15 @@ public class SendNode extends Node {
                 return slot;
         }
         throw new NodeExecutionException(this, "Unable to find variable: " + name);
+    }
+    
+    private Slot getSlotOrNull(String name) {
+        List<Slot> slots = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : slots) {
+            if (name.equals(slot.getName()))
+                return slot;
+        }
+        return null;
     }
     
     private Map<String, String> parseMappingsToMap(String mappingsStr) {
@@ -331,6 +340,7 @@ public class SendNode extends Node {
         c.gridx = 1;
         c.weightx = 0.7;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem("");
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
@@ -569,6 +579,7 @@ public class SendNode extends Node {
         c.gridx = 1;
         c.weightx = 0.6;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem(""); 
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
@@ -633,6 +644,7 @@ public class SendNode extends Node {
         c.gridx = 0;
         c.weightx = 1.0;
         JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.setEditable(true);
         comboBox.addItem(""); 
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
