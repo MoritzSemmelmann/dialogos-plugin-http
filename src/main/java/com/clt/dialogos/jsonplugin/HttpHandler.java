@@ -33,7 +33,7 @@ public class HttpHandler {
             String baseUrl,
             String httpMethod,
             String[] pathVarMappings,
-            String[] queryParamVars,
+            Map<String, String> queryParams,
             JSONObject jsonBody,
             Function<String, Slot> slotProvider,
             String authType,
@@ -42,9 +42,9 @@ public class HttpHandler {
         
         String url = buildUrlWithPathVariables(baseUrl, pathVarMappings, slotProvider);
         
-        Map<String, String> queryParams = buildQueryParameters(queryParamVars, slotProvider);
+        Map<String, String> resolvedQueryParams = buildQueryParameters(queryParams, slotProvider);
         
-        String finalUrl = appendQueryParameters(url, queryParams);
+        String finalUrl = appendQueryParameters(url, resolvedQueryParams);
         
         System.out.println("Method: " + httpMethod);
         System.out.println("URL: " + finalUrl);
@@ -167,20 +167,20 @@ public class HttpHandler {
     }
     
     private static Map<String, String> buildQueryParameters(
-            String[] queryParamVars,
+            Map<String, String> keyToVarMappings,
             Function<String, Slot> slotProvider) {
         
         Map<String, String> params = new HashMap<>();
         
-        for (String varName : queryParamVars) {
-            varName = varName.trim();
-            if (varName.isEmpty()) continue;
+        for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
+            String paramKey = entry.getKey();
+            String varName = entry.getValue();
             
             Slot slot = slotProvider.apply(varName);
             if (slot != null) {
                 String value = slot.getValue().toString();
-                params.put(varName, value);
-                System.out.println("Query parameter: " + varName + " = " + value);
+                params.put(paramKey, value);
+                System.out.println("Query parameter: " + paramKey + " = " + value + " (from variable: " + varName + ")");
             }
         }
         

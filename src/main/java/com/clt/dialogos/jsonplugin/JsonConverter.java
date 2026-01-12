@@ -6,6 +6,7 @@ import com.clt.script.exp.values.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.Map;
 import java.util.function.Function;
 
 public class JsonConverter {
@@ -37,17 +38,19 @@ public class JsonConverter {
         }
     }
 
-    public static JSONObject variablesToJson(String[] varNames, Function<String, Slot> slotProvider) {
+    public static JSONObject variablesToJson(Map<String, String> keyToVarMappings, Function<String, Slot> slotProvider) {
         JSONObject jsonObject = new JSONObject();
         
-        for (String varName : varNames) {
-            varName = varName.trim();
+        for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
+            String jsonKey = entry.getKey();
+            String varName = entry.getValue();
+            
             Slot slot = slotProvider.apply(varName);
             if (slot != null) {
                 Value value = slot.getValue();
                 String jsonStr = value.toJson();
                 Object jsonValue = parseJsonString(jsonStr);
-                jsonObject.put(varName, jsonValue);
+                jsonObject.put(jsonKey, jsonValue);
             }
         }
         

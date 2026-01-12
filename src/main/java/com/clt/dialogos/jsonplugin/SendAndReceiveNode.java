@@ -13,6 +13,7 @@ import org.xml.sax.SAXException;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,8 +62,8 @@ public class SendAndReceiveNode extends Node {
         try {
             // Build JSON body
             String bodyVarsStr = this.getProperty(BODY_VARIABLES).toString().trim();
-            String[] bodyVars = bodyVarsStr.isEmpty() ? new String[0] : bodyVarsStr.split(",");
-            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVars, this::getSlot);
+            Map<String, String> bodyVarMappings = parseMappingsToMap(bodyVarsStr);
+            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlot);
 
             // Get URL, method, path/query variables
             String url = this.getProperty(URL).toString().trim();
@@ -70,14 +71,14 @@ public class SendAndReceiveNode extends Node {
             String pathVarsStr = this.getProperty(PATH_VARIABLES).toString().trim();
             String[] pathVars = pathVarsStr.isEmpty() ? new String[0] : pathVarsStr.split(",");
             String queryVarsStr = this.getProperty(QUERY_VARIABLES).toString().trim();
-            String[] queryVars = queryVarsStr.isEmpty() ? new String[0] : queryVarsStr.split(",");
+            Map<String, String> queryVarMappings = parseMappingsToMap(queryVarsStr);
 
             String authType = this.getProperty(AUTH_TYPE).toString();
             String authValue = this.getProperty(AUTH_VALUE).toString();
             String customHeaders = this.getProperty(CUSTOM_HEADERS).toString();
             
             // Send HTTP request and get response
-            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVars, jsonBody, this::getSlot, authType, authValue, customHeaders);
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVarMappings, jsonBody, this::getSlot, authType, authValue, customHeaders);
             
             if (!result.success) {
                 System.err.println("HTTP request failed: " + result.errorMessage);
@@ -86,7 +87,6 @@ public class SendAndReceiveNode extends Node {
             
             JSONObject responseJson = new JSONObject(result.response);
 
-            // Map response based on mode
             String responseMode = this.getProperty(RESPONSE_MODE).toString();
             if ("single".equals(responseMode)) {
                 // Single variable mode
@@ -115,15 +115,39 @@ public class SendAndReceiveNode extends Node {
         }
         throw new NodeExecutionException(this, "Unable to find variable: " + name);
     }
+    
+    private Map<String, String> parseMappingsToMap(String mappingsStr) {
+        Map<String, String> result = new LinkedHashMap<>();
+        
+        if (mappingsStr == null || mappingsStr.trim().isEmpty()) {
+            return result;
+        }
+        
+        String[] parts = mappingsStr.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            if (part.isEmpty()) continue;
+            
+            if (part.contains("=")) {
+                String[] mapping = part.split("=", 2);
+                String key = mapping[0].trim();
+                String varName = mapping[1].trim();
+                result.put(key, varName);
+            } else {
+                // No key specified, use variable name as key
+                result.put(part, part);
+            }
+        }
+        
+        return result;
+    }
 
     @Override
     public JComponent createEditorComponent(Map<String, Object> properties) {
         JTabbedPane tabs = new JTabbedPane();
         
-        // Tab 1: Send
         tabs.addTab("Send", createSendPanel(properties));
         
-        // Tab 2: Receive
         tabs.addTab("Receive", createReceivePanel(properties));
         
         return tabs;
@@ -178,7 +202,6 @@ public class SendAndReceiveNode extends Node {
             properties.put(URL, urlField.getText());
             List<String> pathVarNames = extractPathVariables(urlField.getText());
             
-            // Only update if path variables actually changed
             if (!pathVarNames.equals(lastPathVars[0])) {
                 lastPathVars[0] = new ArrayList<>(pathVarNames);
                 
@@ -233,7 +256,7 @@ public class SendAndReceiveNode extends Node {
         
         gbc.gridy = 3;
         gbc.weighty = 0.3;
-        JPanel queryParamsPanel = createVariablePanel(properties, QUERY_VARIABLES);
+        JPanel queryParamsPanel = createMappingPanel(properties, QUERY_VARIABLES);
         JScrollPane queryScrollPane = new JScrollPane(queryParamsPanel);
         queryScrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(queryScrollPane, gbc);
@@ -266,7 +289,7 @@ public class SendAndReceiveNode extends Node {
         
         gbc.gridy = 9;
         gbc.weighty = 0.3;
-        JPanel varsPanel = createVariablePanel(properties, BODY_VARIABLES);
+        JPanel varsPanel = createMappingPanel(properties, BODY_VARIABLES);
         JScrollPane scrollPane = new JScrollPane(varsPanel);
         scrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(scrollPane, gbc);
@@ -372,7 +395,6 @@ public class SendAndReceiveNode extends Node {
         
         responseConfigContainer.add(singleVarPanel, "single");
         
-        // Show correct panel based on current mode
         CardLayout cardLayout = (CardLayout) responseConfigContainer.getLayout();
         cardLayout.show(responseConfigContainer, currentMode);
         
@@ -502,6 +524,69 @@ public class SendAndReceiveNode extends Node {
         properties.put(PATH_VARIABLES, String.join(", ", mappings));
     }
 
+    private JPanel createMappingPanel(Map<String, Object> properties, String propertyKey) {
+        JPanel varsPanel = new JPanel(new GridBagLayout());
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        
+        // Add header row
+        JPanel headerPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints hc = new GridBagConstraints();
+        hc.fill = GridBagConstraints.HORIZONTAL;
+        hc.insets = new Insets(2, 2, 2, 2);
+        
+        hc.gridx = 0;
+        hc.weightx = 0.4;
+        String keyLabelText = propertyKey.equals(QUERY_VARIABLES) ? "ParamKey" : "JsonKey";
+        JLabel jsonKeyLabel = new JLabel(keyLabelText);
+        jsonKeyLabel.setFont(jsonKeyLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        headerPanel.add(jsonKeyLabel, hc);
+        
+        hc.gridx = 1;
+        hc.weightx = 0.6;
+        JLabel variableLabel = new JLabel("Variable");
+        variableLabel.setFont(variableLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        headerPanel.add(variableLabel, hc);
+        
+        hc.gridx = 2;
+        hc.weightx = 0;
+        headerPanel.add(new JLabel(""), hc);
+        
+        hc.gridx = 3;
+        headerPanel.add(new JLabel(""), hc);
+        
+        GridBagConstraints headerGbc = new GridBagConstraints();
+        headerGbc.gridx = 0;
+        headerGbc.gridy = 0;
+        headerGbc.weightx = 1.0;
+        headerGbc.weighty = 0;
+        headerGbc.fill = GridBagConstraints.HORIZONTAL;
+        headerGbc.anchor = GridBagConstraints.NORTHWEST;
+        varsPanel.add(headerPanel, headerGbc);
+        
+        String mappingsStr = properties.getOrDefault(propertyKey, "").toString();
+        
+        if (!mappingsStr.trim().isEmpty()) {
+            String[] parts = mappingsStr.split(",");
+            int index = 1;
+            for (String part : parts) {
+                String jsonKey = "";
+                String varName = "";
+                part = part.trim();
+                if (part.contains("=")) {
+                    String[] mapping = part.split("=", 2);
+                    jsonKey = mapping[0].trim();
+                    varName = mapping[1].trim();
+                } else {
+                    varName = part;
+                }
+                addMappingRowAt(varsPanel, properties, allVars, jsonKey, varName, index++, propertyKey);
+            }
+        } else {
+            addMappingRowAt(varsPanel, properties, allVars, "", "", 1, propertyKey);
+        }
+        
+        return varsPanel;
+    }
     
     private JPanel createVariablePanel(Map<String, Object> properties, String propertyKey) {
         JPanel varsPanel = new JPanel(new GridBagLayout());
@@ -520,6 +605,43 @@ public class SendAndReceiveNode extends Node {
         }
         
         return varsPanel;
+    }
+    
+    private void updateMappings(JPanel varsPanel, Map<String, Object> properties, String propertyKey) {
+        List<String> mappings = new ArrayList<>();
+        
+        for (Component comp : varsPanel.getComponents()) {
+            if (comp instanceof JPanel) {
+                JPanel rowPanel = (JPanel) comp;
+                JTextField keyField = null;
+                JComboBox<String> varCombo = null;
+                
+                for (Component rowComp : rowPanel.getComponents()) {
+                    if (rowComp instanceof JTextField) {
+                        keyField = (JTextField) rowComp;
+                    } else if (rowComp instanceof JComboBox) {
+                        @SuppressWarnings("unchecked")
+                        JComboBox<String> cb = (JComboBox<String>) rowComp;
+                        varCombo = cb;
+                    }
+                }
+                
+                if (varCombo != null) {
+                    String varName = (String) varCombo.getSelectedItem();
+                    if (varName != null && !varName.isEmpty()) {
+                        String jsonKey = (keyField != null) ? keyField.getText().trim() : "";
+                        if (!jsonKey.isEmpty()) {
+                            mappings.add(jsonKey + "=" + varName);
+                        } else {
+                            mappings.add(varName);
+                        }
+                    }
+                }
+            }
+        }
+        
+        String mappingsStr = String.join(", ", mappings);
+        properties.put(propertyKey, mappingsStr);
     }
     
     private void updateVariableNames(JPanel varsPanel, Map<String, Object> properties, String propertyKey) {
@@ -616,6 +738,84 @@ public class SendAndReceiveNode extends Node {
         fillerGbc.fill = GridBagConstraints.BOTH;
         varsPanel.add(Box.createVerticalGlue(), fillerGbc);
     }
+    
+    private void addMappingRowAt(JPanel varsPanel, Map<String, Object> properties, List<Slot> allVars, String jsonKey, String varName, int index, String propertyKey) {
+        JPanel rowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(2, 2, 2, 2);
+        
+        // JSON Key field
+        c.gridx = 0;
+        c.weightx = 0.4;
+        JTextField keyField = new JTextField(10);
+        keyField.setText(jsonKey);
+        keyField.addActionListener(e -> updateMappings(varsPanel, properties, propertyKey));
+        keyField.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusLost(java.awt.event.FocusEvent e) {
+                updateMappings(varsPanel, properties, propertyKey);
+            }
+        });
+        rowPanel.add(keyField, c);
+        
+        // Variable combo
+        c.gridx = 1;
+        c.weightx = 0.6;
+        JComboBox<String> comboBox = new JComboBox<>();
+        comboBox.addItem(""); 
+        for (Slot slot : allVars) {
+            comboBox.addItem(slot.getName());
+        }
+        
+        if (!varName.isEmpty()) {
+            comboBox.setSelectedItem(varName);
+        }
+        
+        comboBox.addActionListener(e -> updateMappings(varsPanel, properties, propertyKey));
+        rowPanel.add(comboBox, c);
+        
+        // Plus button
+        c.gridx = 2;
+        c.weightx = 0;
+        JButton plusButton = new JButton("+");
+        plusButton.addActionListener(e -> {
+            int idx = getRowIndex(varsPanel, rowPanel);
+            addMappingRowAt(varsPanel, properties, allVars, "", "", idx + 1, propertyKey);
+            varsPanel.revalidate();
+            varsPanel.repaint();
+            updateMappings(varsPanel, properties, propertyKey);
+        });
+        rowPanel.add(plusButton, c);
+        
+        // Minus button
+        c.gridx = 3;
+        JButton minusButton = new JButton("-");
+        minusButton.addActionListener(e -> {
+            varsPanel.remove(rowPanel);
+            varsPanel.revalidate();
+            varsPanel.repaint();
+            updateMappings(varsPanel, properties, propertyKey);
+        });
+        rowPanel.add(minusButton, c);
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.gridy = index;
+        gbc.weightx = 1.0;
+        gbc.weighty = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        
+        varsPanel.add(rowPanel, gbc, index);
+        
+        GridBagConstraints fillerGbc = new GridBagConstraints();
+        fillerGbc.gridx = 0;
+        fillerGbc.gridy = 999;
+        fillerGbc.weighty = 1.0;
+        fillerGbc.fill = GridBagConstraints.BOTH;
+        varsPanel.add(Box.createVerticalGlue(), fillerGbc);
+    }
 
     private JPanel createResponseMappingPanel(Map<String, Object> properties) {
         JPanel mappingsPanel = new JPanel(new GridBagLayout());
@@ -645,7 +845,7 @@ public class SendAndReceiveNode extends Node {
         
         hc.gridx = 3;
         hc.weightx = 0;
-        headerPanel.add(new JLabel(""), hc); // Empty space for buttons
+        headerPanel.add(new JLabel(""), hc);
         
         hc.gridx = 4;
         headerPanel.add(new JLabel(""), hc);
@@ -698,7 +898,6 @@ public class SendAndReceiveNode extends Node {
         });
         rowPanel.add(jsonKeyField, c);
         
-        // "=" Label
         c.gridx = 1;
         c.weightx = 0;
         rowPanel.add(new JLabel(" = "), c);
