@@ -8,11 +8,7 @@ import org.json.JSONObject;
 
 import java.util.function.Function;
 
-/**
- * Utility class for converting between DialogOS Value objects and JSON objects.
- */
 public class JsonConverter {
-
     public static Object valueToJson(Value value) {
         String jsonString = value.toJson();
         
@@ -20,25 +16,12 @@ public class JsonConverter {
             return new JSONObject(jsonString);
         } else if (jsonString.startsWith("[")) {
             return new JSONArray(jsonString);
-        } else if (jsonString.equals("null")) {
-            return JSONObject.NULL;
-        } else if (jsonString.equals("true") || jsonString.equals("false")) {
-            return Boolean.parseBoolean(jsonString);
-        } else if (jsonString.startsWith("\"")) {
-            return jsonString.substring(1, jsonString.length() - 1);
         } else {
-            try {
-                if (jsonString.contains(".")) {
-                    return Double.parseDouble(jsonString);
-                } else {
-                    return Integer.parseInt(jsonString);
-                }
-            } catch (NumberFormatException e) {
-                return jsonString;
-            }
+            return jsonString;
         }
     }
 
+    
     public static Value jsonToValue(Object json) {
         if (json == null || json == JSONObject.NULL) {
             return new Undefined();
@@ -46,18 +29,11 @@ public class JsonConverter {
             return Value.fromJson((JSONObject) json);
         } else if (json instanceof JSONArray) {
             return Value.fromJson((JSONArray) json);
-        } else if (json instanceof String) {
-            return new StringValue((String) json);
-        } else if (json instanceof Boolean) {
-            return new BoolValue((Boolean) json);
-        } else if (json instanceof Integer) {
-            return new IntValue((Integer) json);
-        } else if (json instanceof Long) {
-            return new IntValue(((Long) json).intValue());
-        } else if (json instanceof Double) {
-            return new RealValue((Double) json);
         } else {
-            return new StringValue(json.toString());
+            JSONObject wrapper = new JSONObject();
+            wrapper.put("temp", json);
+            StructValue struct = (StructValue) Value.fromJson(wrapper);
+            return struct.getValue("temp");
         }
     }
 
@@ -69,7 +45,8 @@ public class JsonConverter {
             Slot slot = slotProvider.apply(varName);
             if (slot != null) {
                 Value value = slot.getValue();
-                Object jsonValue = valueToJson(value);
+                String jsonStr = value.toJson();
+                Object jsonValue = parseJsonString(jsonStr);
                 jsonObject.put(varName, jsonValue);
             }
         }
@@ -77,10 +54,18 @@ public class JsonConverter {
         return jsonObject;
     }
 
-
     public static JSONObject structToJson(StructValue struct) {
-        String jsonString = struct.toJson();
-        return new JSONObject(jsonString);
+        return new JSONObject(struct.toJson());
+    }
+
+    private static Object parseJsonString(String jsonStr) {
+        if (jsonStr.startsWith("{")) {
+            return new JSONObject(jsonStr);
+        } else if (jsonStr.startsWith("[")) {
+            return new JSONArray(jsonStr);
+        } else {
+            return jsonStr;
+        }
     }
 
     public static void mapJsonToVariables(JSONObject responseJson, String mappingsStr, Function<String, Slot> slotProvider) {
@@ -106,10 +91,7 @@ public class JsonConverter {
             try {
                 if (responseJson.has(jsonKey)) {
                     Object jsonValue = responseJson.get(jsonKey);
-                    String jsonString = (jsonValue instanceof JSONObject || jsonValue instanceof JSONArray) 
-                        ? jsonValue.toString() 
-                        : String.valueOf(jsonValue);
-                    Value dialogosValue = Value.fromJson(jsonString);
+                    Value dialogosValue = jsonToValue(jsonValue);
                     Slot targetSlot = slotProvider.apply(varName);
                     if (targetSlot != null) {
                         targetSlot.setValue(dialogosValue);
@@ -141,12 +123,10 @@ public class JsonConverter {
             
             Value value;
             if (asString) {
-                // Store as String
                 value = new StringValue(responseJson.toString());
                 System.out.println("Response stored as String in variable '" + targetVarName + "'");
             } else {
-                // Store as Struct
-                value = Value.fromJson(responseJson.toString());
+                value = Value.fromJson(responseJson);
                 System.out.println("Response stored as Struct in variable '" + targetVarName + "'");
             }
             
