@@ -223,29 +223,36 @@ public class HttpHandler {
             return;
         }
         
-        authValue = resolveVariables(authValue, slotProvider);
-        
         switch (authType) {
             case "Bearer Token":
                 if (authValue != null && !authValue.isEmpty()) {
-                    requestBuilder.header("Authorization", "Bearer " + authValue);
-                    System.out.println("Authorization: Bearer Token");
+                    String resolvedToken = resolveValueOrVariable(authValue, slotProvider);
+                    requestBuilder.header("Authorization", "Bearer " + resolvedToken);
+                    System.out.println("Authorization: Bearer Token = " + resolvedToken);
                 }
                 break;
             case "Basic Auth":
                 if (authValue != null && !authValue.isEmpty()) {
-                    String encoded = java.util.Base64.getEncoder().encodeToString(authValue.getBytes());
-                    requestBuilder.header("Authorization", "Basic " + encoded);
-                    System.out.println("Authorization: Basic Auth (credentials: " + authValue + ")");
-                    System.out.println("Authorization header: Basic " + encoded);
+                    String[] parts = authValue.split(":", 2);
+                    if (parts.length == 2) {
+                        String username = resolveValueOrVariable(parts[0].trim(), slotProvider);
+                        String password = resolveValueOrVariable(parts[1].trim(), slotProvider);
+                        String credentials = username + ":" + password;
+                        String encoded = java.util.Base64.getEncoder().encodeToString(credentials.getBytes());
+                        requestBuilder.header("Authorization", "Basic " + encoded);
+                        System.out.println("Authorization: Basic Auth (username: " + username + ", password: " + password + ")");
+                        System.out.println("Authorization header: Basic " + encoded);
+                    }
                 }
                 break;
             case "API Key":
                 if (authValue != null && !authValue.isEmpty()) {
                     String[] parts = authValue.split(":", 2);
                     if (parts.length == 2) {
-                        requestBuilder.header(parts[0].trim(), parts[1].trim());
-                        System.out.println("API Key: " + parts[0].trim());
+                        String headerName = parts[0].trim();
+                        String headerValue = resolveValueOrVariable(parts[1].trim(), slotProvider);
+                        requestBuilder.header(headerName, headerValue);
+                        System.out.println("API Key: " + headerName + " = " + headerValue);
                     }
                 }
                 break;
@@ -269,35 +276,26 @@ public class HttpHandler {
             String[] parts = header.split("=", 2);
             if (parts.length == 2) {
                 String key = parts[0].trim();
-                String value = resolveVariables(parts[1].trim(), slotProvider);
+                String value = resolveValueOrVariable(parts[1].trim(), slotProvider);
                 requestBuilder.header(key, value);
                 System.out.println("Custom Header: " + key + " = " + value);
             }
         }
     }
     
-    private static String resolveVariables(String value, Function<String, Slot> slotProvider) {
+    private static String resolveValueOrVariable(String value, Function<String, Slot> slotProvider) {
         if (value == null || value.isEmpty()) {
             return value;
         }
         
-        String result = value;
-        int start = 0;
-        while ((start = result.indexOf("${", start)) != -1) {
-            int end = result.indexOf("}", start);
-            if (end == -1) break;
-            
-            String varName = result.substring(start + 2, end);
-            Slot slot = slotProvider.apply(varName);
-            if (slot != null) {
-                String varValue = slot.getValue().toString();
-                result = result.substring(0, start) + varValue + result.substring(end + 1);
-                start += varValue.length();
-            } else {
-                start = end + 1;
-            }
+        Slot slot = slotProvider.apply(value);
+        if (slot != null) {
+            String varValue = slot.getValue().toString();
+            System.out.println("Resolved variable '" + value + "' to: " + varValue);
+            return varValue;
+        } else {
+            System.out.println("Using literal value: " + value);
+            return value;
         }
-        
-        return result;
     }
 }

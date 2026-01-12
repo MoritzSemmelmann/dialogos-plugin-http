@@ -12,6 +12,7 @@ import org.xml.sax.SAXException;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1044,8 +1045,14 @@ public class SendAndReceiveNode extends Node {
         bearerPanel.add(new JLabel("Token:"), bc);
         bc.gridx = 1;
         bc.weightx = 1.0;
-        JTextField bearerTokenField = new JTextField();
-        bearerTokenField.setToolTipText("Enter token or ${variableName}");
+        JComboBox<String> bearerTokenField = new JComboBox<>();
+        bearerTokenField.setEditable(true);
+        bearerTokenField.addItem("");
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : allVars) {
+            bearerTokenField.addItem(slot.getName());
+        }
+        bearerTokenField.setToolTipText("Select variable or enter token");
         bearerPanel.add(bearerTokenField, bc);
         fieldsContainer.add(bearerPanel, "Bearer Token");
         
@@ -1060,8 +1067,13 @@ public class SendAndReceiveNode extends Node {
         basicPanel.add(new JLabel("Username:"), bac);
         bac.gridx = 1;
         bac.weightx = 1.0;
-        JTextField usernameField = new JTextField();
-        usernameField.setToolTipText("Enter username or ${variableName}");
+        JComboBox<String> usernameField = new JComboBox<>();
+        usernameField.setEditable(true);
+        usernameField.addItem("");
+        for (Slot slot : allVars) {
+            usernameField.addItem(slot.getName());
+        }
+        usernameField.setToolTipText("Select variable or enter username");
         basicPanel.add(usernameField, bac);
         bac.gridx = 0;
         bac.gridy = 1;
@@ -1069,8 +1081,13 @@ public class SendAndReceiveNode extends Node {
         basicPanel.add(new JLabel("Password:"), bac);
         bac.gridx = 1;
         bac.weightx = 1.0;
-        JPasswordField passwordField = new JPasswordField();
-        passwordField.setToolTipText("Enter password or ${variableName}");
+        JComboBox<String> passwordField = new JComboBox<>();
+        passwordField.setEditable(true);
+        passwordField.addItem("");
+        for (Slot slot : allVars) {
+            passwordField.addItem(slot.getName());
+        }
+        passwordField.setToolTipText("Select variable or enter password");
         basicPanel.add(passwordField, bac);
         fieldsContainer.add(basicPanel, "Basic Auth");
         
@@ -1094,8 +1111,13 @@ public class SendAndReceiveNode extends Node {
         apiKeyPanel.add(new JLabel("Value:"), akc);
         akc.gridx = 1;
         akc.weightx = 1.0;
-        JTextField apiKeyValueField = new JTextField();
-        apiKeyValueField.setToolTipText("Enter API key or ${variableName}");
+        JComboBox<String> apiKeyValueField = new JComboBox<>();
+        apiKeyValueField.setEditable(true);
+        apiKeyValueField.addItem("");
+        for (Slot slot : allVars) {
+            apiKeyValueField.addItem(slot.getName());
+        }
+        apiKeyValueField.setToolTipText("Select variable or enter API key");
         apiKeyPanel.add(apiKeyValueField, akc);
         fieldsContainer.add(apiKeyPanel, "API Key");
         
@@ -1104,45 +1126,55 @@ public class SendAndReceiveNode extends Node {
         String authType = properties.getOrDefault(AUTH_TYPE, "None").toString();
         
         if ("Bearer Token".equals(authType)) {
-            bearerTokenField.setText(authValue);
+            bearerTokenField.setSelectedItem(authValue);
         } else if ("Basic Auth".equals(authType)) {
             String[] parts = authValue.split(":", 2);
-            if (parts.length >= 1) usernameField.setText(parts[0]);
-            if (parts.length >= 2) passwordField.setText(parts[1]);
+            if (parts.length >= 1) usernameField.setSelectedItem(parts[0]);
+            if (parts.length >= 2) passwordField.setSelectedItem(parts[1]);
         } else if ("API Key".equals(authType)) {
             String[] parts = authValue.split(":", 2);
             if (parts.length >= 1) headerNameField.setText(parts[0]);
-            if (parts.length >= 2) apiKeyValueField.setText(parts[1]);
+            if (parts.length >= 2) apiKeyValueField.setSelectedItem(parts[1]);
         }
         
         // Update listeners
-        bearerTokenField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { properties.put(AUTH_VALUE, bearerTokenField.getText()); }
+        bearerTokenField.addActionListener(e -> {
+            if ("Bearer Token".equals(authTypeCombo.getSelectedItem())) {
+                properties.put(AUTH_VALUE, bearerTokenField.getSelectedItem());
+            }
         });
         
-        javax.swing.event.DocumentListener basicAuthListener = new javax.swing.event.DocumentListener() {
-            private void update() {
-                properties.put(AUTH_VALUE, usernameField.getText() + ":" + new String(passwordField.getPassword()));
+        ActionListener basicAuthListener = e -> {
+            if ("Basic Auth".equals(authTypeCombo.getSelectedItem())) {
+                properties.put(AUTH_VALUE, usernameField.getSelectedItem() + ":" + passwordField.getSelectedItem());
             }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
         };
-        usernameField.getDocument().addDocumentListener(basicAuthListener);
-        passwordField.getDocument().addDocumentListener(basicAuthListener);
+        usernameField.addActionListener(basicAuthListener);
+        passwordField.addActionListener(basicAuthListener);
         
-        javax.swing.event.DocumentListener apiKeyListener = new javax.swing.event.DocumentListener() {
-            private void update() {
-                properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getText());
+        ActionListener apiKeyListener = e -> {
+            if ("API Key".equals(authTypeCombo.getSelectedItem())) {
+                properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getSelectedItem());
             }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
         };
-        headerNameField.getDocument().addDocumentListener(apiKeyListener);
-        apiKeyValueField.getDocument().addDocumentListener(apiKeyListener);
+        headerNameField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { 
+                if ("API Key".equals(authTypeCombo.getSelectedItem())) {
+                    properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getSelectedItem());
+                }
+            }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { 
+                if ("API Key".equals(authTypeCombo.getSelectedItem())) {
+                    properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getSelectedItem());
+                }
+            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { 
+                if ("API Key".equals(authTypeCombo.getSelectedItem())) {
+                    properties.put(AUTH_VALUE, headerNameField.getText() + ":" + apiKeyValueField.getSelectedItem());
+                }
+            }
+        });
+        apiKeyValueField.addActionListener(apiKeyListener);
         
         // Switch panel based on selection
         authTypeCombo.addActionListener(e -> {
@@ -1199,8 +1231,15 @@ public class SendAndReceiveNode extends Node {
         
         c.gridx = 1;
         c.weightx = 0.5;
-        JTextField valueField = new JTextField(value);
-        valueField.setToolTipText("Header value (supports ${variableName})");
+        JComboBox<String> valueField = new JComboBox<>();
+        valueField.setEditable(true);
+        valueField.addItem("");
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : allVars) {
+            valueField.addItem(slot.getName());
+        }
+        valueField.setSelectedItem(value);
+        valueField.setToolTipText("Select variable or enter value");
         rowPanel.add(valueField, c);
         
         c.gridx = 2;
@@ -1234,7 +1273,7 @@ public class SendAndReceiveNode extends Node {
             }
         };
         keyField.getDocument().addDocumentListener(docListener);
-        valueField.getDocument().addDocumentListener(docListener);
+        valueField.addActionListener(e -> updateCustomHeaders(headersPanel, properties));
         
         headersPanel.add(rowPanel);
     }
@@ -1253,8 +1292,15 @@ public class SendAndReceiveNode extends Node {
         
         c.gridx = 1;
         c.weightx = 0.5;
-        JTextField valueField = new JTextField(value);
-        valueField.setToolTipText("Header value (supports ${variableName})");
+        JComboBox<String> valueField = new JComboBox<>();
+        valueField.setEditable(true);
+        valueField.addItem("");
+        List<Slot> allVarsForRow = this.getGraph().getAllVariables(Graph.LOCAL);
+        for (Slot slot : allVarsForRow) {
+            valueField.addItem(slot.getName());
+        }
+        valueField.setSelectedItem(value);
+        valueField.setToolTipText("Select variable or enter value");
         rowPanel.add(valueField, c);
         
         c.gridx = 2;
@@ -1288,7 +1334,7 @@ public class SendAndReceiveNode extends Node {
             }
         };
         keyField.getDocument().addDocumentListener(docListener);
-        valueField.getDocument().addDocumentListener(docListener);
+        valueField.addActionListener(e -> updateCustomHeaders(headersPanel, properties));
         
         headersPanel.add(rowPanel, index);
     }
@@ -1300,22 +1346,27 @@ public class SendAndReceiveNode extends Node {
             if (comp instanceof JPanel) {
                 JPanel rowPanel = (JPanel) comp;
                 JTextField keyField = null;
-                JTextField valueField = null;
+                Object valueField = null;
                 
                 for (Component rowComp : rowPanel.getComponents()) {
                     if (rowComp instanceof JTextField) {
-                        if (keyField == null) {
-                            keyField = (JTextField) rowComp;
-                        } else {
-                            valueField = (JTextField) rowComp;
-                            break;
-                        }
+                        keyField = (JTextField) rowComp;
+                    } else if (rowComp instanceof JComboBox) {
+                        valueField = rowComp;
                     }
                 }
                 
                 if (keyField != null && valueField != null) {
                     String key = keyField.getText().trim();
-                    String value = valueField.getText().trim();
+                    String value = "";
+                    if (valueField instanceof JComboBox) {
+                        @SuppressWarnings("unchecked")
+                        JComboBox<String> combo = (JComboBox<String>) valueField;
+                        value = (String) combo.getSelectedItem();
+                        if (value == null) value = "";
+                    }
+                    value = value.trim();
+                    
                     if (!key.isEmpty() && !value.isEmpty()) {
                         headers.add(key + "=" + value);
                     }
