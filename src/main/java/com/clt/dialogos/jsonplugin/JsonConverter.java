@@ -64,7 +64,12 @@ public class JsonConverter {
         } else if (jsonStr.startsWith("[")) {
             return new JSONArray(jsonStr);
         } else {
-            return jsonStr;
+            try {
+                JSONObject temp = new JSONObject("{\"v\":" + jsonStr + "}");
+                return temp.get("v");
+            } catch (Exception e) {
+                return jsonStr;
+            }
         }
     }
 
