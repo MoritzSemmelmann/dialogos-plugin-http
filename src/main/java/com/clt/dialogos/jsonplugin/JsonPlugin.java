@@ -7,9 +7,6 @@ import com.clt.gui.Images;
 import javax.swing.*;
 import java.util.Arrays;
 
-/**
- * JSON Plugin for DialogOS
- */
 public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
@@ -24,7 +21,7 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public Icon getIcon() {
-        // Return a simple icon or null
+        // Return a simple icon
         return UIManager.getIcon("FileView.fileIcon");
     }
 
@@ -44,7 +41,7 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public void terminate() {
-        // Cleanup resources if needed
+        // Cleanup resources
     }
 
     @Override

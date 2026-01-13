@@ -1,7 +1,11 @@
 package com.clt.dialogos.jsonplugin;
 
 import com.clt.diamant.Slot;
+import com.clt.script.DefaultEnvironment;
+import com.clt.script.exp.Expression;
+import com.clt.script.exp.Type;
 import com.clt.script.exp.Value;
+import com.clt.script.exp.Variable;
 import com.clt.script.exp.values.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -43,18 +47,16 @@ public class JsonConverter {
         
         for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
             String jsonKey = entry.getKey();
-            String varOrValue = entry.getValue();
+            String expression = entry.getValue();
             
-            Slot slot = slotProvider.apply(varOrValue);
-            if (slot != null) {
-                Value value = slot.getValue();
-                String jsonStr = value.toJson();
-                Object jsonValue = parseJsonString(jsonStr);
-                jsonObject.put(jsonKey, jsonValue);
-            } else {
-                Object literalValue = parseLiteralValue(varOrValue);
-                jsonObject.put(jsonKey, literalValue);
+            if (expression == null || expression.trim().isEmpty()) {
+                continue;
             }
+            
+            Value value = evaluateExpression(expression, slotProvider);
+            String jsonStr = value.toJson();
+            Object jsonValue = parseJsonString(jsonStr);
+            jsonObject.put(jsonKey, jsonValue);
         }
         
         return jsonObject;
@@ -79,31 +81,35 @@ public class JsonConverter {
         }
     }
     
-    private static Object parseLiteralValue(String value) {
-        if (value == null || value.isEmpty()) {
-            return "";
+    public static Value evaluateExpression(String expressionStr, Function<String, Slot> slotProvider) {
+        if (expressionStr == null || expressionStr.trim().isEmpty()) {
+            return new StringValue("");
         }
         
         try {
-            if (value.contains(".")) {
-                return Double.parseDouble(value);
-            } else {
-                return Long.parseLong(value);
-            }
-        } catch (NumberFormatException e) {
+            Expression expr = Expression.parseExpression(expressionStr, new DefaultEnvironment() {
+                @Override
+                public Variable createVariableReference(String id) {
+                    Slot slot = slotProvider.apply(id);
+                    if (slot != null) {
+                        return new Variable() {
+                            public String getName() { return id; }
+                            public Value getValue() { return slot.getValue(); }
+                            public void setValue(Value value) { slot.setValue(value); }
+                            public Type getType() { return slot.getValue().getType(); }
+                        };
+                    }
+                    return super.createVariableReference(id);
+                }
+            });
+            
+            Value result = expr.evaluate();
+            System.out.println("Expression '" + expressionStr + "' evaluated to: " + result.toString());
+            return result;
+        } catch (Exception e) {
+            System.out.println("Expression parsing failed for '" + expressionStr + "', treating as string literal: " + e.getMessage());
+            return new StringValue(expressionStr);
         }
-        
-        if ("true".equalsIgnoreCase(value)) {
-            return true;
-        }
-        if ("false".equalsIgnoreCase(value)) {
-            return false;
-        }
-        
-        if ("null".equalsIgnoreCase(value)) {
-            return JSONObject.NULL;
-        }
-        return value;
     }
 
     public static void mapJsonToVariables(JSONObject responseJson, String mappingsStr, Function<String, Slot> slotProvider) {

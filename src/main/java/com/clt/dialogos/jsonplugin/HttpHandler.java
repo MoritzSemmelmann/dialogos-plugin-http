@@ -1,6 +1,7 @@
 package com.clt.dialogos.jsonplugin;
 
 import com.clt.diamant.Slot;
+import com.clt.script.exp.Value;
 import org.json.JSONObject;
 
 import java.net.URI;
@@ -152,17 +153,16 @@ public class HttpHandler {
             String[] parts = mapping.split("=");
             if (parts.length == 2) {
                 String pathVarName = parts[0].trim();
-                String varOrValue = parts[1].trim();
+                String expression = parts[1].trim();
                 
-                Slot slot = slotProvider.apply(varOrValue);
-                if (slot != null) {
-                    String value = slot.getValue().toString();
-                    url = url.replace("{" + pathVarName + "}", value);
-                    System.out.println("Path variable: {" + pathVarName + "} = " + value + " (from variable: " + varOrValue + ")");
-                } else {
-                    url = url.replace("{" + pathVarName + "}", varOrValue);
-                    System.out.println("Path variable: {" + pathVarName + "} = " + varOrValue + " (literal value)");
+                if (expression.isEmpty()) {
+                    continue;
                 }
+                
+                Value value = JsonConverter.evaluateExpression(expression, slotProvider);
+                String valueStr = value.toString();
+                url = url.replace("{" + pathVarName + "}", valueStr);
+                System.out.println("Path variable: {" + pathVarName + "} = " + valueStr + " (from expression: " + expression + ")");
             }
         }
         
@@ -177,17 +177,15 @@ public class HttpHandler {
         
         for (Map.Entry<String, String> entry : keyToVarMappings.entrySet()) {
             String paramKey = entry.getKey();
-            String varOrValue = entry.getValue();
+            String expression = entry.getValue();
             
-            Slot slot = slotProvider.apply(varOrValue);
-            if (slot != null) {
-                String value = slot.getValue().toString();
-                params.put(paramKey, value);
-                System.out.println("Query parameter: " + paramKey + " = " + value + " (from variable: " + varOrValue + ")");
-            } else {
-                params.put(paramKey, varOrValue);
-                System.out.println("Query parameter: " + paramKey + " = " + varOrValue + " (literal value)");
+            if (expression == null || expression.trim().isEmpty()) {
+                continue;
             }
+            Value value = JsonConverter.evaluateExpression(expression, slotProvider);
+            String valueStr = value.toString();
+            params.put(paramKey, valueStr);
+            System.out.println("Query parameter: " + paramKey + " = " + valueStr + " (from expression: " + expression + ")");
         }
         
         return params;
@@ -226,17 +224,20 @@ public class HttpHandler {
         switch (authType) {
             case "Bearer Token":
                 if (authValue != null && !authValue.isEmpty()) {
-                    String resolvedToken = resolveValueOrVariable(authValue, slotProvider);
-                    requestBuilder.header("Authorization", "Bearer " + resolvedToken);
-                    System.out.println("Authorization: Bearer Token = " + resolvedToken);
+                    Value tokenValue = JsonConverter.evaluateExpression(authValue, slotProvider);
+                    String token = tokenValue.toString();
+                    requestBuilder.header("Authorization", "Bearer " + token);
+                    System.out.println("Authorization: Bearer Token = " + token);
                 }
                 break;
             case "Basic Auth":
                 if (authValue != null && !authValue.isEmpty()) {
                     String[] parts = authValue.split(":", 2);
                     if (parts.length == 2) {
-                        String username = resolveValueOrVariable(parts[0].trim(), slotProvider);
-                        String password = resolveValueOrVariable(parts[1].trim(), slotProvider);
+                        Value usernameValue = JsonConverter.evaluateExpression(parts[0].trim(), slotProvider);
+                        Value passwordValue = JsonConverter.evaluateExpression(parts[1].trim(), slotProvider);
+                        String username = usernameValue.toString();
+                        String password = passwordValue.toString();
                         String credentials = username + ":" + password;
                         String encoded = java.util.Base64.getEncoder().encodeToString(credentials.getBytes());
                         requestBuilder.header("Authorization", "Basic " + encoded);
@@ -250,7 +251,8 @@ public class HttpHandler {
                     String[] parts = authValue.split(":", 2);
                     if (parts.length == 2) {
                         String headerName = parts[0].trim();
-                        String headerValue = resolveValueOrVariable(parts[1].trim(), slotProvider);
+                        Value headerValueObj = JsonConverter.evaluateExpression(parts[1].trim(), slotProvider);
+                        String headerValue = headerValueObj.toString();
                         requestBuilder.header(headerName, headerValue);
                         System.out.println("API Key: " + headerName + " = " + headerValue);
                     }
@@ -276,26 +278,13 @@ public class HttpHandler {
             String[] parts = header.split("=", 2);
             if (parts.length == 2) {
                 String key = parts[0].trim();
-                String value = resolveValueOrVariable(parts[1].trim(), slotProvider);
+                String expression = parts[1].trim();
+                
+                Value valueObj = JsonConverter.evaluateExpression(expression, slotProvider);
+                String value = valueObj.toString();
                 requestBuilder.header(key, value);
-                System.out.println("Custom Header: " + key + " = " + value);
+                System.out.println("Custom Header: " + key + " = " + value + " (from expression: " + expression + ")");
             }
-        }
-    }
-    
-    private static String resolveValueOrVariable(String value, Function<String, Slot> slotProvider) {
-        if (value == null || value.isEmpty()) {
-            return value;
-        }
-        
-        Slot slot = slotProvider.apply(value);
-        if (slot != null) {
-            String varValue = slot.getValue().toString();
-            System.out.println("Resolved variable '" + value + "' to: " + varValue);
-            return varValue;
-        } else {
-            System.out.println("Using literal value: " + value);
-            return value;
         }
     }
 }
