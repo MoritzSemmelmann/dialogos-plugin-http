@@ -2,6 +2,7 @@ package com.clt.dialogos.jsonplugin;
 
 import com.clt.diamant.Slot;
 import com.clt.script.exp.Value;
+import com.clt.script.exp.values.StringValue;
 import org.json.JSONObject;
 
 import java.net.URI;
@@ -160,7 +161,7 @@ public class HttpHandler {
                 }
                 
                 Value value = JsonConverter.evaluateExpression(expression, slotProvider);
-                String valueStr = value.toString();
+                String valueStr = valueToPlainString(value);
                 url = url.replace("{" + pathVarName + "}", valueStr);
                 System.out.println("Path variable: {" + pathVarName + "} = " + valueStr + " (from expression: " + expression + ")");
             }
@@ -183,7 +184,7 @@ public class HttpHandler {
                 continue;
             }
             Value value = JsonConverter.evaluateExpression(expression, slotProvider);
-            String valueStr = value.toString();
+            String valueStr = valueToPlainString(value);
             params.put(paramKey, valueStr);
             System.out.println("Query parameter: " + paramKey + " = " + valueStr + " (from expression: " + expression + ")");
         }
@@ -225,7 +226,7 @@ public class HttpHandler {
             case "Bearer Token":
                 if (authValue != null && !authValue.isEmpty()) {
                     Value tokenValue = JsonConverter.evaluateExpression(authValue, slotProvider);
-                    String token = tokenValue.toString();
+                    String token = valueToPlainString(tokenValue);
                     requestBuilder.header("Authorization", "Bearer " + token);
                     System.out.println("Authorization: Bearer Token = " + token);
                 }
@@ -236,8 +237,8 @@ public class HttpHandler {
                     if (parts.length == 2) {
                         Value usernameValue = JsonConverter.evaluateExpression(parts[0].trim(), slotProvider);
                         Value passwordValue = JsonConverter.evaluateExpression(parts[1].trim(), slotProvider);
-                        String username = usernameValue.toString();
-                        String password = passwordValue.toString();
+                        String username = valueToPlainString(usernameValue);
+                        String password = valueToPlainString(passwordValue);
                         String credentials = username + ":" + password;
                         String encoded = java.util.Base64.getEncoder().encodeToString(credentials.getBytes());
                         requestBuilder.header("Authorization", "Basic " + encoded);
@@ -252,7 +253,7 @@ public class HttpHandler {
                     if (parts.length == 2) {
                         String headerName = parts[0].trim();
                         Value headerValueObj = JsonConverter.evaluateExpression(parts[1].trim(), slotProvider);
-                        String headerValue = headerValueObj.toString();
+                        String headerValue = valueToPlainString(headerValueObj);
                         requestBuilder.header(headerName, headerValue);
                         System.out.println("API Key: " + headerName + " = " + headerValue);
                     }
@@ -281,10 +282,17 @@ public class HttpHandler {
                 String expression = parts[1].trim();
                 
                 Value valueObj = JsonConverter.evaluateExpression(expression, slotProvider);
-                String value = valueObj.toString();
+                String value = valueToPlainString(valueObj);
                 requestBuilder.header(key, value);
                 System.out.println("Custom Header: " + key + " = " + value + " (from expression: " + expression + ")");
             }
         }
+    }
+
+    private static String valueToPlainString(Value value) {
+        if (value instanceof StringValue) {
+            return ((StringValue) value).getString();
+        }
+        return value.toString();
     }
 }
