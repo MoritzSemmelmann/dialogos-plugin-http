@@ -1,7 +1,5 @@
 plugins {
     id 'java'
-    id 'maven-publish'
-    id 'eclipse'
 }
 
 group = 'com.github.dialogos-project'
@@ -9,72 +7,33 @@ version = '1.0.0'
 
 repositories {
     mavenCentral()
-    maven { url "https://jitpack.io/" }
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://raw.githubusercontent.com/DFKI-MLT/Maven-Repository/main' }
 }
 
 dependencies {
-    // Reference DialogOS modules from local build
-    compileOnly fileTree(dir: '../dialogos/Diamant/build/libs', include: ['*.jar'])
-    compileOnly fileTree(dir: '../dialogos/com.clt.base/build/libs', include: ['*.jar'])
-    compileOnly fileTree(dir: '../dialogos/com.clt.script/build/libs', include: ['*.jar'])
-    compileOnly fileTree(dir: '../dialogos/com.clt.xml/build/libs', include: ['*.jar'])
-    
-    // JSON processing - will be bundled in the JAR
+    // Nur zum Kompilieren nötig (DialogOS bringt das zur Laufzeit selbst mit)
+    compileOnly 'com.github.dialogos-project:dialogos:2.1.4'
+
+    // Muss ins JAR gepackt werden, da DialogOS kein JSON hat
     implementation 'org.json:json:20231013'
 }
 
 jar {
     archiveBaseName = 'dialogos-plugin-json'
-    archiveVersion = version
-    
-    // Include only runtime dependencies (not compileOnly)
+
+    // Packt die 'implementation' Abhängigkeiten (org.json) direkt ins JAR
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
-    
-    // Ensure META-INF/services is included
-    from('src/main/resources') {
-        include 'META-INF/**'
-    }
-    
+
     manifest {
         attributes(
-            'Implementation-Title': 'DialogOS JSON Plugin',
-            'Implementation-Version': version,
-            'Plugin-Id': 'com.clt.dialogos.jsonplugin',
-            'Plugin-Name': 'JSON Plugin',
-            'Plugin-Version': version
+                'Plugin-Id': 'com.clt.dialogos.jsonplugin',
+                'Plugin-Name': 'JSON Plugin',
+                'Plugin-Version': version
         )
     }
-    
+
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
-
-publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.github.dialogos-project'
-            artifactId = 'dialogos-plugin-json'
-            from components.java
-        }
-    }
-}
-
-task copyPluginToDialogOS(type: Copy, dependsOn: jar) {
-    description = 'Copies the plugin JAR to the DialogOS plugins directory'
-    from jar.archiveFile
-    into file('../dialogos/plugins')
-}
-
-// Task to ensure DialogOS modules are built before compiling
-task buildDialogOSDeps(type: Exec) {
-    workingDir '../dialogos'
-    commandLine 'cmd', '/c', 'gradlew.bat', ':Diamant:jar', ':com.clt.base:jar', ':com.clt.script:jar', ':com.clt.xml:jar'
-}
-
-compileJava.dependsOn buildDialogOSDeps
