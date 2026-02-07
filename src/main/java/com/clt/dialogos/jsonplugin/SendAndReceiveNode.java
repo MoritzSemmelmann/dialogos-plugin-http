@@ -726,6 +726,9 @@ public class SendAndReceiveNode extends Node {
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
             varsPanel.remove(rowPanel);
+            if (varsPanel.getComponentCount() <= 1) {
+                addVariableRowAt(varsPanel, properties, allVars, "", 1, propertyKey);
+            }
             varsPanel.revalidate();
             varsPanel.repaint();
             updateVariableNames(varsPanel, properties, propertyKey);
@@ -805,6 +808,9 @@ public class SendAndReceiveNode extends Node {
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
             varsPanel.remove(rowPanel);
+            if (varsPanel.getComponentCount() <= 2) {
+                addMappingRowAt(varsPanel, properties, allVars, "", "", 1, propertyKey);
+            }
             varsPanel.revalidate();
             varsPanel.repaint();
             updateMappings(varsPanel, properties, propertyKey);
@@ -1258,6 +1264,9 @@ public class SendAndReceiveNode extends Node {
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
             headersPanel.remove(rowPanel);
+            if (headersPanel.getComponentCount() == 0) {
+                addHeaderRow(headersPanel, properties, "", "");
+            }
             headersPanel.revalidate();
             headersPanel.repaint();
             updateCustomHeaders(headersPanel, properties);
@@ -1319,6 +1328,9 @@ public class SendAndReceiveNode extends Node {
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
             headersPanel.remove(rowPanel);
+            if (headersPanel.getComponentCount() == 0) {
+                addHeaderRow(headersPanel, properties, "", "");
+            }
             headersPanel.revalidate();
             headersPanel.repaint();
             updateCustomHeaders(headersPanel, properties);
