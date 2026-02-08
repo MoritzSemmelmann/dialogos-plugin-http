@@ -29,7 +29,8 @@ public class SendNode extends Node {
     private static final String CUSTOM_HEADERS = "customHeaders";
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
-    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(32, 24);
+    private static final String REMOVE_LABEL = "-";
+    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(26, 24);
 
     public SendNode() {
         this.addEdge("Success");
@@ -457,7 +458,7 @@ public class SendNode extends Node {
 
         JPanel container = new JPanel(new BorderLayout());
         container.add(headerPanel, BorderLayout.NORTH);
-        container.add(rowsPanel, BorderLayout.CENTER);
+        container.add(wrapRowsPanel(rowsPanel), BorderLayout.CENTER);
 
         String mappingsStr = properties.getOrDefault(propertyKey, "").toString();
         if (!mappingsStr.trim().isEmpty()) {
@@ -567,7 +568,7 @@ public class SendNode extends Node {
 
         JPanel container = new JPanel(new BorderLayout());
         container.add(headerPanel, BorderLayout.NORTH);
-        container.add(rowsPanel, BorderLayout.CENTER);
+        container.add(wrapRowsPanel(rowsPanel), BorderLayout.CENTER);
 
         String varNamesStr = properties.getOrDefault(propertyKey, "").toString();
         if (!varNamesStr.trim().isEmpty()) {
@@ -683,7 +684,7 @@ public class SendNode extends Node {
         
         // Minus button
         c.gridx = 2;
-        JButton minusButton = new JButton("-");
+        JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
@@ -723,7 +724,7 @@ public class SendNode extends Node {
         rowPanel.add(comboBox, c);
         
         c.gridx = 1;
-        JButton minusButton = new JButton("-");
+        JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
@@ -955,7 +956,7 @@ public class SendNode extends Node {
 
         JPanel container = new JPanel(new BorderLayout());
         container.add(headerPanel, BorderLayout.NORTH);
-        container.add(rowsPanel, BorderLayout.CENTER);
+        container.add(wrapRowsPanel(rowsPanel), BorderLayout.CENTER);
 
         String headersStr = properties.getOrDefault(CUSTOM_HEADERS, "").toString();
         if (!headersStr.isEmpty()) {
@@ -1001,7 +1002,7 @@ public class SendNode extends Node {
 
         c.gridx = 2;
         c.weightx = 0;
-        JButton minusButton = new JButton("-");
+        JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
@@ -1026,6 +1027,13 @@ public class SendNode extends Node {
         valueField.addActionListener(e -> updateCustomHeaders(rowsPanel, properties));
 
         rowsPanel.add(rowPanel);
+    }
+
+    private JPanel wrapRowsPanel(JPanel rowsPanel) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(rowsPanel, BorderLayout.NORTH);
+        wrapper.add(Box.createVerticalGlue(), BorderLayout.CENTER);
+        return wrapper;
     }
 
     private void styleCompactButton(JButton button) {
