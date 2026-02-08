@@ -112,6 +112,8 @@ public class JsonConverter {
         }
     }
 
+    private static final Object JSON_PATH_NOT_FOUND = new Object();
+
     public static void mapJsonToVariables(JSONObject responseJson, String mappingsStr, Function<String, Slot> slotProvider) {
         if (mappingsStr == null || mappingsStr.trim().isEmpty()) {
             System.out.println("Warning: No response variable mappings specified");
@@ -123,7 +125,7 @@ public class JsonConverter {
             mapping = mapping.trim();
             if (mapping.isEmpty()) continue;
             
-            String[] parts = mapping.split("=");
+            String[] parts = mapping.split("=", 2);
             if (parts.length != 2) {
                 System.out.println("Warning: Invalid mapping format '" + mapping + "', expected 'jsonKey=varName'");
                 continue;
@@ -133,8 +135,8 @@ public class JsonConverter {
             String varName = parts[1].trim();
             
             try {
-                if (responseJson.has(jsonKey)) {
-                    Object jsonValue = responseJson.get(jsonKey);
+                Object jsonValue = resolveJsonPath(responseJson, jsonKey);
+                if (jsonValue != JSON_PATH_NOT_FOUND) {
                     Value dialogosValue = jsonToValue(jsonValue);
                     Slot targetSlot = slotProvider.apply(varName);
                     if (targetSlot != null) {
@@ -178,5 +180,67 @@ public class JsonConverter {
         } catch (Exception e) {
             System.out.println("ERROR: Failed to map JSON to variable '" + targetVarName + "': " + e.getMessage());
         }
+    }
+
+    private static Object resolveJsonPath(Object current, String path) {
+        if (path == null || path.isEmpty()) {
+            return current;
+        }
+
+        int pos = 0;
+        int length = path.length();
+        while (pos < length) {
+            if (path.charAt(pos) == '.') {
+                pos++;
+                continue;
+            }
+
+            int segmentStart = pos;
+            while (pos < length && path.charAt(pos) != '.' && path.charAt(pos) != '[') {
+                pos++;
+            }
+
+            if (segmentStart != pos) {
+                String key = path.substring(segmentStart, pos);
+                if (!(current instanceof JSONObject)) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                JSONObject obj = (JSONObject) current;
+                if (!obj.has(key)) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                current = obj.get(key);
+            }
+
+            while (pos < length && path.charAt(pos) == '[') {
+                pos++;
+                int closingBracket = path.indexOf(']', pos);
+                if (closingBracket == -1) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                String indexStr = path.substring(pos, closingBracket).trim();
+                int index;
+                try {
+                    index = Integer.parseInt(indexStr);
+                } catch (NumberFormatException ex) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                if (!(current instanceof JSONArray)) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                JSONArray array = (JSONArray) current;
+                if (index < 0 || index >= array.length()) {
+                    return JSON_PATH_NOT_FOUND;
+                }
+                current = array.get(index);
+                pos = closingBracket + 1;
+            }
+
+            if (pos < length && path.charAt(pos) == '.') {
+                pos++;
+            }
+        }
+
+        return current;
     }
 }
