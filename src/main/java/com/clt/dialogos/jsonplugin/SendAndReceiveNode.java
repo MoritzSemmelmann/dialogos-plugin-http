@@ -7,6 +7,7 @@ import com.clt.diamant.graph.nodes.NodeExecutionException;
 import com.clt.script.exp.Value;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
@@ -102,14 +103,17 @@ public class SendAndReceiveNode extends Node {
                 return getEdge(1).getTarget();
             }
             
-            JSONObject responseJson = new JSONObject(result.response);
+            Object responsePayload = parseResponsePayload(result.response);
+            JSONObject responseJson = responsePayload instanceof JSONObject
+                ? (JSONObject) responsePayload
+                : wrapArrayResponse((JSONArray) responsePayload);
 
             String responseMode = this.getProperty(RESPONSE_MODE).toString();
             if ("single".equals(responseMode)) {
                 // Single variable mode
                 String targetVar = this.getProperty(RESPONSE_TARGET_VAR).toString().trim();
                 boolean asString = Boolean.parseBoolean(this.getProperty(RESPONSE_AS_STRING).toString());
-                JsonConverter.mapJsonToSingleVariable(responseJson, targetVar, asString, this::getSlot);
+                JsonConverter.mapJsonToSingleVariable(responsePayload, result.response, targetVar, asString, this::getSlot);
             } else {
                 // Multiple variables mode (default)
                 String mappingsStr = this.getProperty(RESPONSE_MAPPINGS).toString().trim();
@@ -151,6 +155,23 @@ public class SendAndReceiveNode extends Node {
         } catch (Exception e) {
             throw new NodeExecutionException(this, "Invalid raw JSON body: " + e.getMessage());
         }
+    }
+
+    private Object parseResponsePayload(String responseBody) {
+        if (responseBody == null || responseBody.trim().isEmpty()) {
+            return new JSONObject();
+        }
+        String trimmed = responseBody.trim();
+        if (trimmed.startsWith("[")) {
+            return new JSONArray(trimmed);
+        }
+        return new JSONObject(trimmed);
+    }
+
+    private JSONObject wrapArrayResponse(JSONArray array) {
+        JSONObject wrapper = new JSONObject();
+        wrapper.put("$root", array);
+        return wrapper;
     }
     
     private Map<String, String> parseMappingsToMap(String mappingsStr) {

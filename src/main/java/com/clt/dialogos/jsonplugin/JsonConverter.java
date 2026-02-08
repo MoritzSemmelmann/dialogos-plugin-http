@@ -154,7 +154,7 @@ public class JsonConverter {
         }
     }
 
-    public static void mapJsonToSingleVariable(JSONObject responseJson, String targetVarName, boolean asString, Function<String, Slot> slotProvider) {
+    public static void mapJsonToSingleVariable(Object responsePayload, String rawResponse, String targetVarName, boolean asString, Function<String, Slot> slotProvider) {
         if (targetVarName == null || targetVarName.trim().isEmpty()) {
             System.out.println("Warning: No target variable specified");
             return;
@@ -169,11 +169,20 @@ public class JsonConverter {
             
             Value value;
             if (asString) {
-                value = new StringValue(responseJson.toString());
+                String storeValue = rawResponse != null ? rawResponse : (responsePayload != null ? responsePayload.toString() : "");
+                value = new StringValue(storeValue);
                 System.out.println("Response stored as String in variable '" + targetVarName + "'");
             } else {
-                value = Value.fromJson(responseJson);
-                System.out.println("Response stored as Struct in variable '" + targetVarName + "'");
+                if (responsePayload instanceof JSONObject) {
+                    value = Value.fromJson((JSONObject) responsePayload);
+                    System.out.println("Response stored as Struct in variable '" + targetVarName + "'");
+                } else if (responsePayload instanceof JSONArray) {
+                    value = Value.fromJson((JSONArray) responsePayload);
+                    System.out.println("Response stored as List in variable '" + targetVarName + "'");
+                } else {
+                    value = new Undefined();
+                    System.out.println("Response payload was empty; stored Undefined in variable '" + targetVarName + "'");
+                }
             }
             
             targetSlot.setValue(value);
