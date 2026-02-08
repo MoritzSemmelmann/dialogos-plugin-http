@@ -642,49 +642,38 @@ public class SendAndReceiveNode extends Node {
     }
 
     private JPanel createMappingPanel(Map<String, Object> properties, String propertyKey) {
-        JPanel varsPanel = new JPanel(new GridBagLayout());
         List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
-        
-        // Add header row
-        JPanel headerPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints hc = new GridBagConstraints();
-        hc.fill = GridBagConstraints.HORIZONTAL;
-        hc.insets = new Insets(2, 2, 2, 2);
-        
-        hc.gridx = 0;
-        hc.weightx = 0.4;
+        JPanel rowsPanel = new JPanel();
+        rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
+
+        JButton addRowButton = new JButton("+");
+        addRowButton.addActionListener(e -> {
+            addMappingRow(rowsPanel, properties, allVars, "", "", propertyKey);
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+        });
+
         String keyLabelText = propertyKey.equals(QUERY_VARIABLES) ? "ParamKey" : "JsonKey";
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        JPanel labelsPanel = new JPanel(new GridLayout(1, 2, 8, 0));
         JLabel jsonKeyLabel = new JLabel(keyLabelText);
         jsonKeyLabel.setFont(jsonKeyLabel.getFont().deriveFont(java.awt.Font.BOLD));
-        headerPanel.add(jsonKeyLabel, hc);
-        
-        hc.gridx = 1;
-        hc.weightx = 0.6;
         JLabel variableLabel = new JLabel("Variable");
         variableLabel.setFont(variableLabel.getFont().deriveFont(java.awt.Font.BOLD));
-        headerPanel.add(variableLabel, hc);
-        
-        hc.gridx = 2;
-        hc.weightx = 0;
-        headerPanel.add(new JLabel(""), hc);
-        
-        hc.gridx = 3;
-        headerPanel.add(new JLabel(""), hc);
-        
-        GridBagConstraints headerGbc = new GridBagConstraints();
-        headerGbc.gridx = 0;
-        headerGbc.gridy = 0;
-        headerGbc.weightx = 1.0;
-        headerGbc.weighty = 0;
-        headerGbc.fill = GridBagConstraints.HORIZONTAL;
-        headerGbc.anchor = GridBagConstraints.NORTHWEST;
-        varsPanel.add(headerPanel, headerGbc);
-        
+        labelsPanel.add(jsonKeyLabel);
+        labelsPanel.add(variableLabel);
+        headerPanel.add(labelsPanel, BorderLayout.CENTER);
+        JPanel addButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        addButtonPanel.add(addRowButton);
+        headerPanel.add(addButtonPanel, BorderLayout.EAST);
+
+        JPanel container = new JPanel(new BorderLayout());
+        container.add(headerPanel, BorderLayout.NORTH);
+        container.add(rowsPanel, BorderLayout.CENTER);
+
         String mappingsStr = properties.getOrDefault(propertyKey, "").toString();
-        
         if (!mappingsStr.trim().isEmpty()) {
             String[] parts = mappingsStr.split(",");
-            int index = 1;
             for (String part : parts) {
                 String jsonKey = "";
                 String varName = "";
@@ -696,13 +685,15 @@ public class SendAndReceiveNode extends Node {
                 } else {
                     varName = part;
                 }
-                addMappingRowAt(varsPanel, properties, allVars, jsonKey, varName, index++, propertyKey);
+                addMappingRow(rowsPanel, properties, allVars, jsonKey, varName, propertyKey);
             }
-        } else {
-            addMappingRowAt(varsPanel, properties, allVars, "", "", 1, propertyKey);
         }
-        
-        return varsPanel;
+
+        if (rowsPanel.getComponentCount() == 0) {
+            addMappingRow(rowsPanel, properties, allVars, "", "", propertyKey);
+        }
+
+        return container;
     }
     
     private JPanel createVariablePanel(Map<String, Object> properties, String propertyKey) {
@@ -860,86 +851,55 @@ public class SendAndReceiveNode extends Node {
         varsPanel.add(Box.createVerticalGlue(), fillerGbc);
     }
     
-    private void addMappingRowAt(JPanel varsPanel, Map<String, Object> properties, List<Slot> allVars, String jsonKey, String varName, int index, String propertyKey) {
+    private void addMappingRow(JPanel rowsPanel, Map<String, Object> properties, List<Slot> allVars, String jsonKey, String varName, String propertyKey) {
         JPanel rowPanel = new JPanel(new GridBagLayout());
+        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(2, 2, 2, 2);
-        
-        // JSON Key field
+
         c.gridx = 0;
         c.weightx = 0.4;
         JTextField keyField = new JTextField(10);
         keyField.setText(jsonKey);
-        keyField.addActionListener(e -> updateMappings(varsPanel, properties, propertyKey));
+        keyField.addActionListener(e -> updateMappings(rowsPanel, properties, propertyKey));
         keyField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent e) {
-                updateMappings(varsPanel, properties, propertyKey);
+                updateMappings(rowsPanel, properties, propertyKey);
             }
         });
         rowPanel.add(keyField, c);
-        
-        // Variable combo
+
         c.gridx = 1;
         c.weightx = 0.6;
         JComboBox<String> comboBox = new JComboBox<>();
         comboBox.setEditable(true);
-        comboBox.addItem(""); 
+        comboBox.addItem("");
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
         }
-        
+
         if (!varName.isEmpty()) {
             comboBox.setSelectedItem(varName);
         }
-        
-        comboBox.addActionListener(e -> updateMappings(varsPanel, properties, propertyKey));
+
+        comboBox.addActionListener(e -> updateMappings(rowsPanel, properties, propertyKey));
         rowPanel.add(comboBox, c);
-        
-        // Plus button
+
         c.gridx = 2;
-        c.weightx = 0;
-        JButton plusButton = new JButton("+");
-        plusButton.addActionListener(e -> {
-            int idx = getRowIndex(varsPanel, rowPanel);
-            addMappingRowAt(varsPanel, properties, allVars, "", "", idx + 1, propertyKey);
-            varsPanel.revalidate();
-            varsPanel.repaint();
-            updateMappings(varsPanel, properties, propertyKey);
-        });
-        rowPanel.add(plusButton, c);
-        
-        // Minus button
-        c.gridx = 3;
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
-            varsPanel.remove(rowPanel);
-            if (varsPanel.getComponentCount() <= 2) {
-                addMappingRowAt(varsPanel, properties, allVars, "", "", 1, propertyKey);
+            rowsPanel.remove(rowPanel);
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+            updateMappings(rowsPanel, properties, propertyKey);
+            if (rowsPanel.getComponentCount() == 0) {
+                addMappingRow(rowsPanel, properties, allVars, "", "", propertyKey);
             }
-            varsPanel.revalidate();
-            varsPanel.repaint();
-            updateMappings(varsPanel, properties, propertyKey);
         });
         rowPanel.add(minusButton, c);
-        
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = index;
-        gbc.weightx = 1.0;
-        gbc.weighty = 0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.insets = new Insets(0, 0, 0, 0);
-        
-        varsPanel.add(rowPanel, gbc, index);
-        
-        GridBagConstraints fillerGbc = new GridBagConstraints();
-        fillerGbc.gridx = 0;
-        fillerGbc.gridy = 999;
-        fillerGbc.weighty = 1.0;
-        fillerGbc.fill = GridBagConstraints.BOTH;
-        varsPanel.add(Box.createVerticalGlue(), fillerGbc);
+
+        rowsPanel.add(rowPanel);
     }
 
     private JPanel createResponseMappingPanel(Map<String, Object> properties) {
@@ -1304,157 +1264,102 @@ public class SendAndReceiveNode extends Node {
     }
     
     private JPanel createHeadersPanel(Map<String, Object> properties) {
-        JPanel headersPanel = new JPanel();
-        headersPanel.setLayout(new BoxLayout(headersPanel, BoxLayout.Y_AXIS));
-        
+        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
+        JPanel rowsPanel = new JPanel();
+        rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
+
+        JButton addHeaderButton = new JButton("+");
+        addHeaderButton.addActionListener(e -> {
+            addHeaderRow(rowsPanel, properties, "", "", allVars);
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+        });
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        JPanel labelsPanel = new JPanel(new GridLayout(1, 2, 8, 0));
+        JLabel headerLabel = new JLabel("Header");
+        headerLabel.setFont(headerLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        JLabel valueLabel = new JLabel("Value");
+        valueLabel.setFont(valueLabel.getFont().deriveFont(java.awt.Font.BOLD));
+        labelsPanel.add(headerLabel);
+        labelsPanel.add(valueLabel);
+        headerPanel.add(labelsPanel, BorderLayout.CENTER);
+        JPanel addButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        addButtonPanel.add(addHeaderButton);
+        headerPanel.add(addButtonPanel, BorderLayout.EAST);
+
+        JPanel container = new JPanel(new BorderLayout());
+        container.add(headerPanel, BorderLayout.NORTH);
+        container.add(rowsPanel, BorderLayout.CENTER);
+
         String headersStr = properties.getOrDefault(CUSTOM_HEADERS, "").toString();
-        Map<String, String> existingHeaders = new java.util.HashMap<>();
         if (!headersStr.isEmpty()) {
             for (String header : headersStr.split(",")) {
                 String[] parts = header.split("=", 2);
                 if (parts.length == 2) {
-                    existingHeaders.put(parts[0].trim(), parts[1].trim());
+                    addHeaderRow(rowsPanel, properties, parts[0].trim(), parts[1].trim(), allVars);
                 }
             }
         }
-        
-        for (Map.Entry<String, String> entry : existingHeaders.entrySet()) {
-            addHeaderRow(headersPanel, properties, entry.getKey(), entry.getValue());
+
+        if (rowsPanel.getComponentCount() == 0) {
+            addHeaderRow(rowsPanel, properties, "", "", allVars);
         }
-        
-        if (existingHeaders.isEmpty()) {
-            addHeaderRow(headersPanel, properties, "", "");
-        }
-        
-        return headersPanel;
+
+        return container;
     }
-    
-    private void addHeaderRow(JPanel headersPanel, Map<String, Object> properties, String key, String value) {
+
+    private void addHeaderRow(JPanel rowsPanel, Map<String, Object> properties, String key, String value, List<Slot> allVars) {
         JPanel rowPanel = new JPanel(new GridBagLayout());
+        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(2, 2, 2, 2);
-        
+
         c.gridx = 0;
         c.weightx = 0.4;
         JTextField keyField = new JTextField(key);
         keyField.setToolTipText("Header name (e.g., x-api-key)");
         rowPanel.add(keyField, c);
-        
+
         c.gridx = 1;
         c.weightx = 0.5;
         JComboBox<String> valueField = new JComboBox<>();
         valueField.setEditable(true);
         valueField.addItem("");
-        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
         for (Slot slot : allVars) {
             valueField.addItem(slot.getName());
         }
         valueField.setSelectedItem(value);
         valueField.setToolTipText("Select variable or enter value");
         rowPanel.add(valueField, c);
-        
+
         c.gridx = 2;
         c.weightx = 0;
-        JButton plusButton = new JButton("+");
-        plusButton.addActionListener(e -> {
-            int idx = getRowIndex(headersPanel, rowPanel);
-            addHeaderRowAt(headersPanel, properties, "", "", idx + 1);
-            headersPanel.revalidate();
-            headersPanel.repaint();
-            updateCustomHeaders(headersPanel, properties);
-        });
-        rowPanel.add(plusButton, c);
-        
-        c.gridx = 3;
         JButton minusButton = new JButton("-");
         minusButton.addActionListener(e -> {
-            headersPanel.remove(rowPanel);
-            if (headersPanel.getComponentCount() == 0) {
-                addHeaderRow(headersPanel, properties, "", "");
+            rowsPanel.remove(rowPanel);
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+            updateCustomHeaders(rowsPanel, properties);
+            if (rowsPanel.getComponentCount() == 0) {
+                addHeaderRow(rowsPanel, properties, "", "", allVars);
             }
-            headersPanel.revalidate();
-            headersPanel.repaint();
-            updateCustomHeaders(headersPanel, properties);
         });
         rowPanel.add(minusButton, c);
-        
+
         javax.swing.event.DocumentListener docListener = new javax.swing.event.DocumentListener() {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
             public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
             private void update() {
-                updateCustomHeaders(headersPanel, properties);
+                updateCustomHeaders(rowsPanel, properties);
             }
         };
         keyField.getDocument().addDocumentListener(docListener);
-        valueField.addActionListener(e -> updateCustomHeaders(headersPanel, properties));
-        
-        headersPanel.add(rowPanel);
-    }
-    
-    private void addHeaderRowAt(JPanel headersPanel, Map<String, Object> properties, String key, String value, int index) {
-        JPanel rowPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(2, 2, 2, 2);
-        
-        c.gridx = 0;
-        c.weightx = 0.4;
-        JTextField keyField = new JTextField(key);
-        keyField.setToolTipText("Header name (e.g., x-api-key)");
-        rowPanel.add(keyField, c);
-        
-        c.gridx = 1;
-        c.weightx = 0.5;
-        JComboBox<String> valueField = new JComboBox<>();
-        valueField.setEditable(true);
-        valueField.addItem("");
-        List<Slot> allVarsForRow = this.getGraph().getAllVariables(Graph.LOCAL);
-        for (Slot slot : allVarsForRow) {
-            valueField.addItem(slot.getName());
-        }
-        valueField.setSelectedItem(value);
-        valueField.setToolTipText("Select variable or enter value");
-        rowPanel.add(valueField, c);
-        
-        c.gridx = 2;
-        c.weightx = 0;
-        JButton plusButton = new JButton("+");
-        plusButton.addActionListener(e -> {
-            int idx = getRowIndex(headersPanel, rowPanel);
-            addHeaderRowAt(headersPanel, properties, "", "", idx + 1);
-            headersPanel.revalidate();
-            headersPanel.repaint();
-            updateCustomHeaders(headersPanel, properties);
-        });
-        rowPanel.add(plusButton, c);
-        
-        c.gridx = 3;
-        JButton minusButton = new JButton("-");
-        minusButton.addActionListener(e -> {
-            headersPanel.remove(rowPanel);
-            if (headersPanel.getComponentCount() == 0) {
-                addHeaderRow(headersPanel, properties, "", "");
-            }
-            headersPanel.revalidate();
-            headersPanel.repaint();
-            updateCustomHeaders(headersPanel, properties);
-        });
-        rowPanel.add(minusButton, c);
-        
-        javax.swing.event.DocumentListener docListener = new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            private void update() {
-                updateCustomHeaders(headersPanel, properties);
-            }
-        };
-        keyField.getDocument().addDocumentListener(docListener);
-        valueField.addActionListener(e -> updateCustomHeaders(headersPanel, properties));
-        
-        headersPanel.add(rowPanel, index);
+        valueField.addActionListener(e -> updateCustomHeaders(rowsPanel, properties));
+
+        rowsPanel.add(rowPanel);
     }
     
     private void updateCustomHeaders(JPanel headersPanel, Map<String, Object> properties) {
@@ -1533,3 +1438,4 @@ public class SendAndReceiveNode extends Node {
         return super.getPortColor(portNumber);
     }
 }
+
