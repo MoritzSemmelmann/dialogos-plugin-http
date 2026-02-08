@@ -94,6 +94,7 @@ public class SendAndReceiveNode extends Node {
             JSONObject responseJson = new JSONObject(result.response);
 
             String responseMode = this.getProperty(RESPONSE_MODE).toString();
+            System.out.println("Response mode: " + responseMode);
             if ("single".equals(responseMode)) {
                 // Single variable mode
                 String targetVar = this.getProperty(RESPONSE_TARGET_VAR).toString().trim();
@@ -102,6 +103,7 @@ public class SendAndReceiveNode extends Node {
             } else {
                 // Multiple variables mode (default)
                 String mappingsStr = this.getProperty(RESPONSE_MAPPINGS).toString().trim();
+                System.out.println("Response mappings string: '" + mappingsStr + "'");
                 JsonConverter.mapJsonToVariables(responseJson, mappingsStr, this::getSlot);
             }
             
