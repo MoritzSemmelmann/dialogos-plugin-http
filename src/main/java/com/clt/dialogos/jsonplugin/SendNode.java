@@ -30,7 +30,7 @@ public class SendNode extends Node {
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
     private static final String REMOVE_LABEL = "-";
-    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(22, 22);
+    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(26, 22);
 
     public SendNode() {
         this.addEdge("Success");
@@ -546,45 +546,6 @@ public class SendNode extends Node {
         return container;
     }
     
-    private JPanel createVariablePanel(Map<String, Object> properties, String propertyKey) {
-        List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
-        JPanel rowsPanel = new JPanel();
-        rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
-
-        JButton addRowButton = new JButton("+");
-        addRowButton.addActionListener(e -> {
-            addVariableRow(rowsPanel, properties, allVars, "", propertyKey);
-            rowsPanel.revalidate();
-            rowsPanel.repaint();
-        });
-
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        JLabel variableLabel = new JLabel("Variable");
-        variableLabel.setFont(variableLabel.getFont().deriveFont(java.awt.Font.BOLD));
-        headerPanel.add(variableLabel, BorderLayout.WEST);
-        JPanel addButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        addButtonPanel.add(addRowButton);
-        headerPanel.add(addButtonPanel, BorderLayout.EAST);
-
-        JPanel container = new JPanel(new BorderLayout());
-        container.add(headerPanel, BorderLayout.NORTH);
-        container.add(wrapRowsPanel(rowsPanel), BorderLayout.CENTER);
-
-        String varNamesStr = properties.getOrDefault(propertyKey, "").toString();
-        if (!varNamesStr.trim().isEmpty()) {
-            String[] parts = varNamesStr.split(",");
-            for (String part : parts) {
-                addVariableRow(rowsPanel, properties, allVars, part.trim(), propertyKey);
-            }
-        }
-
-        if (rowsPanel.getComponentCount() == 0) {
-            addVariableRow(rowsPanel, properties, allVars, "", propertyKey);
-        }
-        
-        return container;
-    }
-    
     private void updateMappings(JPanel varsPanel, Map<String, Object> properties, String propertyKey) {
         List<String> mappings = new ArrayList<>();
         
@@ -620,29 +581,6 @@ public class SendNode extends Node {
         
         String mappingsStr = String.join(", ", mappings);
         properties.put(propertyKey, mappingsStr);
-    }
-    
-    private void updateVariableNames(JPanel varsPanel, Map<String, Object> properties, String propertyKey) {
-        List<String> selectedVars = new ArrayList<>();
-        
-        for (Component comp : varsPanel.getComponents()) {
-            if (comp instanceof JPanel) {
-                JPanel rowPanel = (JPanel) comp;
-                for (Component rowComp : rowPanel.getComponents()) {
-                    if (rowComp instanceof JComboBox) {
-                        @SuppressWarnings("unchecked")
-                        JComboBox<String> comboBox = (JComboBox<String>) rowComp;
-                        String selected = (String) comboBox.getSelectedItem();
-                        if (selected != null && !selected.isEmpty()) {
-                            selectedVars.add(selected);
-                        }
-                    }
-                }
-            }
-        }
-        
-        String varNamesStr = String.join(", ", selectedVars);
-        properties.put(propertyKey, varNamesStr);
     }
     
     private void addMappingRow(JPanel rowsPanel, Map<String, Object> properties, List<Slot> allVars, String jsonKey, String varName, String propertyKey) {
@@ -695,48 +633,6 @@ public class SendNode extends Node {
             updateMappings(rowsPanel, properties, propertyKey);
             if (rowsPanel.getComponentCount() == 0) {
                 addMappingRow(rowsPanel, properties, allVars, "", "", propertyKey);
-            }
-        });
-        rowPanel.add(minusButton, c);
-        
-        rowsPanel.add(rowPanel);
-    }
-    
-    private void addVariableRow(JPanel rowsPanel, Map<String, Object> properties, List<Slot> allVars, String initialValue, String propertyKey) {
-        JPanel rowPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(2, 2, 2, 2);
-        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        c.gridx = 0;
-        c.weightx = 1.0;
-        JComboBox<String> comboBox = new JComboBox<>();
-        comboBox.setEditable(true);
-        comboBox.addItem(""); 
-        for (Slot slot : allVars) {
-            comboBox.addItem(slot.getName());
-        }
-        
-        if (!initialValue.isEmpty()) {
-            comboBox.setSelectedItem(initialValue);
-        }
-        
-        comboBox.addActionListener(e -> updateVariableNames(rowsPanel, properties, propertyKey));
-        rowPanel.add(comboBox, c);
-        
-        c.gridx = 1;
-        c.weightx = 0;
-        c.fill = GridBagConstraints.NONE;
-        JButton minusButton = new JButton(REMOVE_LABEL);
-        styleCompactButton(minusButton);
-        minusButton.addActionListener(e -> {
-            rowsPanel.remove(rowPanel);
-            rowsPanel.revalidate();
-            rowsPanel.repaint();
-            updateVariableNames(rowsPanel, properties, propertyKey);
-            if (rowsPanel.getComponentCount() == 0) {
-                addVariableRow(rowsPanel, properties, allVars, "", propertyKey);
             }
         });
         rowPanel.add(minusButton, c);
@@ -1097,13 +993,16 @@ public class SendNode extends Node {
         Graph.printAtt(out, AUTH_TYPE, this.getProperty(AUTH_TYPE).toString());
         Graph.printAtt(out, AUTH_VALUE, this.getProperty(AUTH_VALUE).toString());
         Graph.printAtt(out, CUSTOM_HEADERS, this.getProperty(CUSTOM_HEADERS).toString());
+        Graph.printAtt(out, BODY_MODE, this.getProperty(BODY_MODE).toString());
+        Graph.printAtt(out, RAW_BODY, this.getProperty(RAW_BODY).toString());
     }
 
     @Override
     protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
         if (name.equals(VARIABLE_NAMES) || name.equals(HTTP_URL) || name.equals(HTTP_METHOD) ||
             name.equals(PATH_VARIABLES) || name.equals(QUERY_PARAMETERS) ||
-            name.equals(AUTH_TYPE) || name.equals(AUTH_VALUE) || name.equals(CUSTOM_HEADERS)) {
+            name.equals(AUTH_TYPE) || name.equals(AUTH_VALUE) || name.equals(CUSTOM_HEADERS) ||
+            name.equals(BODY_MODE) || name.equals(RAW_BODY)) {
             this.setProperty(name, value);
         } else {
             super.readAttribute(r, name, value, uid_map);
