@@ -55,4 +55,4 @@ The resulting artifact `build/libs/dialogos-plugin-json-<version>.jar` already c
 
 ## License
 This project inherits the DialogOS project licensing (see parent repository for details).
-
+ 
