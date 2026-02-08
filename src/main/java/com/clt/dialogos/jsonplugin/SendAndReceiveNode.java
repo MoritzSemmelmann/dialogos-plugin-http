@@ -31,6 +31,8 @@ public class SendAndReceiveNode extends Node {
     private static final String AUTH_TYPE = "authType";
     private static final String AUTH_VALUE = "authValue";
     private static final String CUSTOM_HEADERS = "customHeaders";
+    private static final String BODY_MODE = "bodyMode";
+    private static final String RAW_BODY = "rawBody";
 
     public SendAndReceiveNode() {
         this.addEdge("Success");
@@ -51,6 +53,8 @@ public class SendAndReceiveNode extends Node {
         this.setProperty(AUTH_TYPE, "None");
         this.setProperty(AUTH_VALUE, "");
         this.setProperty(CUSTOM_HEADERS, "");
+        this.setProperty(BODY_MODE, "mapping");
+        this.setProperty(RAW_BODY, "");
     }
 
     @Override
@@ -68,8 +72,15 @@ public class SendAndReceiveNode extends Node {
         try {
             // Build JSON body
             String bodyVarsStr = this.getProperty(BODY_VARIABLES).toString().trim();
-            Map<String, String> bodyVarMappings = parseMappingsToMap(bodyVarsStr);
-            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
+            String bodyMode = this.getProperty(BODY_MODE) == null ? "mapping" : this.getProperty(BODY_MODE).toString();
+            JSONObject jsonBody;
+            if ("raw".equals(bodyMode)) {
+                String rawJson = this.getProperty(RAW_BODY) == null ? "" : this.getProperty(RAW_BODY).toString();
+                jsonBody = parseRawJsonBody(rawJson);
+            } else {
+                Map<String, String> bodyVarMappings = parseMappingsToMap(bodyVarsStr);
+                jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
+            }
 
             // Get URL, method, path/query variables
             String url = this.getProperty(URL).toString().trim();
@@ -130,6 +141,17 @@ public class SendAndReceiveNode extends Node {
         }
         return null;
     }
+
+    private JSONObject parseRawJsonBody(String rawJson) {
+        if (rawJson == null || rawJson.trim().isEmpty()) {
+            return new JSONObject();
+        }
+        try {
+            return new JSONObject(rawJson);
+        } catch (Exception e) {
+            throw new NodeExecutionException(this, "Invalid raw JSON body: " + e.getMessage());
+        }
+    }
     
     private Map<String, String> parseMappingsToMap(String mappingsStr) {
         Map<String, String> result = new LinkedHashMap<>();
@@ -155,6 +177,67 @@ public class SendAndReceiveNode extends Node {
         }
         
         return result;
+    }
+
+    private JPanel createBodyInputPanel(Map<String, Object> properties) {
+        JPanel container = new JPanel(new BorderLayout());
+
+        JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        ButtonGroup group = new ButtonGroup();
+        JRadioButton mappingsRadio = new JRadioButton("Use variable mappings");
+        JRadioButton rawRadio = new JRadioButton("Enter raw JSON");
+        group.add(mappingsRadio);
+        group.add(rawRadio);
+        modePanel.add(mappingsRadio);
+        modePanel.add(rawRadio);
+        container.add(modePanel, BorderLayout.NORTH);
+
+        JPanel cardPanel = new JPanel(new CardLayout());
+
+        JPanel mappingPanel = createMappingPanel(properties, BODY_VARIABLES);
+        JScrollPane mappingScrollPane = new JScrollPane(mappingPanel);
+        mappingScrollPane.setPreferredSize(new Dimension(400, 100));
+        cardPanel.add(mappingScrollPane, "mapping");
+
+        JTextArea rawArea = new JTextArea(8, 30);
+        rawArea.setLineWrap(true);
+        rawArea.setWrapStyleWord(true);
+        rawArea.setText(properties.getOrDefault(RAW_BODY, "").toString());
+        rawArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void update() {
+                properties.put(RAW_BODY, rawArea.getText());
+            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        });
+        JScrollPane rawScrollPane = new JScrollPane(rawArea);
+        rawScrollPane.setPreferredSize(new Dimension(400, 120));
+        cardPanel.add(rawScrollPane, "raw");
+
+        container.add(cardPanel, BorderLayout.CENTER);
+
+        String currentMode = properties.getOrDefault(BODY_MODE, "mapping").toString();
+        if ("raw".equals(currentMode)) {
+            rawRadio.setSelected(true);
+        } else {
+            mappingsRadio.setSelected(true);
+            currentMode = "mapping";
+        }
+
+        CardLayout layout = (CardLayout) cardPanel.getLayout();
+        layout.show(cardPanel, currentMode);
+
+        mappingsRadio.addActionListener(e -> {
+            properties.put(BODY_MODE, "mapping");
+            layout.show(cardPanel, "mapping");
+        });
+        rawRadio.addActionListener(e -> {
+            properties.put(BODY_MODE, "raw");
+            layout.show(cardPanel, "raw");
+        });
+
+        return container;
     }
 
     @Override
@@ -297,17 +380,14 @@ public class SendAndReceiveNode extends Node {
         headersScrollPane.setPreferredSize(new Dimension(400, 60));
         mainPanel.add(headersScrollPane, gbc);
         
-        // JSON Body Variables
+        // JSON Body
         gbc.gridy = 8;
         gbc.weighty = 0;
-        mainPanel.add(new JLabel("JSON Body Variables:"), gbc);
+        mainPanel.add(new JLabel("JSON Body:"), gbc);
         
         gbc.gridy = 9;
         gbc.weighty = 0.3;
-        JPanel varsPanel = createMappingPanel(properties, BODY_VARIABLES);
-        JScrollPane scrollPane = new JScrollPane(varsPanel);
-        scrollPane.setPreferredSize(new Dimension(400, 80));
-        mainPanel.add(scrollPane, gbc);
+        mainPanel.add(createBodyInputPanel(properties), gbc);
         
         return mainPanel;
     }

@@ -27,6 +27,8 @@ public class SendNode extends Node {
     private static final String AUTH_TYPE = "authType";
     private static final String AUTH_VALUE = "authValue";
     private static final String CUSTOM_HEADERS = "customHeaders";
+    private static final String BODY_MODE = "bodyMode";
+    private static final String RAW_BODY = "rawBody";
 
     public SendNode() {
         this.addEdge("Success");
@@ -43,6 +45,8 @@ public class SendNode extends Node {
         this.setProperty(AUTH_TYPE, "None");
         this.setProperty(AUTH_VALUE, "");
         this.setProperty(CUSTOM_HEADERS, "");
+        this.setProperty(BODY_MODE, "mapping");
+        this.setProperty(RAW_BODY, "");
     }
     
     @Override
@@ -64,17 +68,23 @@ public class SendNode extends Node {
             String pathVarsStr = this.getProperty(PATH_VARIABLES).toString();
             String queryParamsStr = this.getProperty(QUERY_PARAMETERS).toString();
             String varNamesStr = this.getProperty(VARIABLE_NAMES).toString().trim();
+            String bodyMode = this.getProperty(BODY_MODE) == null ? "mapping" : this.getProperty(BODY_MODE).toString();
             
             String[] pathVarMappings = pathVarsStr.isEmpty() ? new String[0] : pathVarsStr.split(",");
             
             // Parse query parameter mappings: "key=var" or "var"
             Map<String, String> queryParamMappings = parseMappingsToMap(queryParamsStr);
             
-            // Parse body variable mappings: "jsonKey=var" or "var"
-            Map<String, String> bodyVarMappings = parseMappingsToMap(varNamesStr);
-            
-            // Build JSON object from body variables
-            JSONObject jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
+            JSONObject jsonBody;
+            if ("raw".equals(bodyMode)) {
+                String rawJson = this.getProperty(RAW_BODY) == null ? "" : this.getProperty(RAW_BODY).toString();
+                jsonBody = parseRawJsonBody(rawJson);
+            } else {
+                // Parse body variable mappings: "jsonKey=var" or "var"
+                Map<String, String> bodyVarMappings = parseMappingsToMap(varNamesStr);
+                // Build JSON object from body variables
+                jsonBody = JsonConverter.variablesToJson(bodyVarMappings, this::getSlotOrNull);
+            }
             
             System.out.println("\n Generated JSON Body");
             System.out.println(jsonBody.toString(2));
@@ -282,17 +292,14 @@ public class SendNode extends Node {
         headersScrollPane.setPreferredSize(new Dimension(400, 80));
         mainPanel.add(headersScrollPane, gbc);
         
-        // JSON Body Variables
+        // JSON Body
         gbc.gridy = 8;
         gbc.weighty = 0;
-        mainPanel.add(new JLabel("JSON Body Variables:"), gbc);
+        mainPanel.add(new JLabel("JSON Body:"), gbc);
         
         gbc.gridy = 9;
         gbc.weighty = 0.5;
-        JPanel varsPanel = createMappingPanel(properties, VARIABLE_NAMES);
-        JScrollPane scrollPane = new JScrollPane(varsPanel);
-        scrollPane.setPreferredSize(new Dimension(400, 100));
-        mainPanel.add(scrollPane, gbc);
+        mainPanel.add(createBodyInputPanel(properties, VARIABLE_NAMES), gbc);
         
         return mainPanel;
     }
@@ -409,6 +416,17 @@ public class SendNode extends Node {
         properties.put(PATH_VARIABLES, String.join(", ", mappings));
     }
 
+    private JSONObject parseRawJsonBody(String rawJson) {
+        if (rawJson == null || rawJson.trim().isEmpty()) {
+            return new JSONObject();
+        }
+        try {
+            return new JSONObject(rawJson);
+        } catch (Exception e) {
+            throw new NodeExecutionException(this, "Invalid raw JSON body: " + e.getMessage());
+        }
+    }
+
     
     private JPanel createMappingPanel(Map<String, Object> properties, String propertyKey) {
         JPanel varsPanel = new JPanel(new GridBagLayout());
@@ -471,6 +489,67 @@ public class SendNode extends Node {
         }
         
         return varsPanel;
+    }
+
+    private JPanel createBodyInputPanel(Map<String, Object> properties, String mappingPropertyKey) {
+        JPanel container = new JPanel(new BorderLayout());
+
+        JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        ButtonGroup modeGroup = new ButtonGroup();
+        JRadioButton mappingRadio = new JRadioButton("Use variable mappings");
+        JRadioButton rawRadio = new JRadioButton("Enter raw JSON");
+        modeGroup.add(mappingRadio);
+        modeGroup.add(rawRadio);
+        modePanel.add(mappingRadio);
+        modePanel.add(rawRadio);
+        container.add(modePanel, BorderLayout.NORTH);
+
+        JPanel bodyCardPanel = new JPanel(new CardLayout());
+
+        JPanel mappingPanel = createMappingPanel(properties, mappingPropertyKey);
+        JScrollPane mappingScrollPane = new JScrollPane(mappingPanel);
+        mappingScrollPane.setPreferredSize(new Dimension(400, 120));
+        bodyCardPanel.add(mappingScrollPane, "mapping");
+
+        JTextArea rawJsonArea = new JTextArea(8, 30);
+        rawJsonArea.setLineWrap(true);
+        rawJsonArea.setWrapStyleWord(true);
+        rawJsonArea.setText(properties.getOrDefault(RAW_BODY, "").toString());
+        rawJsonArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void update() {
+                properties.put(RAW_BODY, rawJsonArea.getText());
+            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        });
+        JScrollPane rawScrollPane = new JScrollPane(rawJsonArea);
+        rawScrollPane.setPreferredSize(new Dimension(400, 120));
+        bodyCardPanel.add(rawScrollPane, "raw");
+
+        container.add(bodyCardPanel, BorderLayout.CENTER);
+
+        String mode = properties.getOrDefault(BODY_MODE, "mapping").toString();
+        if ("raw".equals(mode)) {
+            rawRadio.setSelected(true);
+        } else {
+            mappingRadio.setSelected(true);
+            mode = "mapping";
+        }
+
+        CardLayout cardLayout = (CardLayout) bodyCardPanel.getLayout();
+        cardLayout.show(bodyCardPanel, mode);
+
+        mappingRadio.addActionListener(e -> {
+            properties.put(BODY_MODE, "mapping");
+            cardLayout.show(bodyCardPanel, "mapping");
+        });
+        rawRadio.addActionListener(e -> {
+            properties.put(BODY_MODE, "raw");
+            cardLayout.show(bodyCardPanel, "raw");
+        });
+
+        return container;
     }
     
     private JPanel createVariablePanel(Map<String, Object> properties, String propertyKey) {
