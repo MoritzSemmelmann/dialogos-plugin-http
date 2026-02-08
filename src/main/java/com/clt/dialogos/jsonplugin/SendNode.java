@@ -684,6 +684,8 @@ public class SendNode extends Node {
         
         // Minus button
         c.gridx = 2;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
@@ -724,6 +726,8 @@ public class SendNode extends Node {
         rowPanel.add(comboBox, c);
         
         c.gridx = 1;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
@@ -1002,6 +1006,7 @@ public class SendNode extends Node {
 
         c.gridx = 2;
         c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {

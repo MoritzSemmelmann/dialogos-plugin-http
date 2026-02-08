@@ -822,6 +822,8 @@ public class SendAndReceiveNode extends Node {
         rowPanel.add(plusButton, c);
         
         c.gridx = 2;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
@@ -890,6 +892,8 @@ public class SendAndReceiveNode extends Node {
         rowPanel.add(comboBox, c);
 
         c.gridx = 2;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
@@ -1003,6 +1007,8 @@ public class SendAndReceiveNode extends Node {
         rowPanel.add(comboBox, c);
 
         c.gridx = 3;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
@@ -1309,6 +1315,7 @@ public class SendAndReceiveNode extends Node {
 
         c.gridx = 2;
         c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
         JButton minusButton = new JButton(REMOVE_LABEL);
         styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
