@@ -53,6 +53,11 @@ public class SendAndReceiveNode extends Node {
         this.setProperty(CUSTOM_HEADERS, "");
     }
 
+    @Override
+    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {
+        // no VoiceXML support
+    }
+
     public static String getNodeTypeName(Class<?> c) {
         return "Send and Receive JSON";
     }

@@ -44,6 +44,11 @@ public class SendNode extends Node {
         this.setProperty(AUTH_VALUE, "");
         this.setProperty(CUSTOM_HEADERS, "");
     }
+    
+    @Override
+    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {
+        // no VoiceXML support
+    }
 
     public static String getNodeTypeName(Class<?> c) {
         return "Send JSON";
