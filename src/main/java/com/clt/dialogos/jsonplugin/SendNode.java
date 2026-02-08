@@ -29,6 +29,7 @@ public class SendNode extends Node {
     private static final String CUSTOM_HEADERS = "customHeaders";
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
+    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(32, 24);
 
     public SendNode() {
         this.addEdge("Success");
@@ -268,7 +269,7 @@ public class SendNode extends Node {
         gbc.weighty = 0.5;
         JPanel queryParamsPanel = createMappingPanel(properties, QUERY_PARAMETERS);
         JScrollPane queryScrollPane = new JScrollPane(queryParamsPanel);
-        queryScrollPane.setPreferredSize(new Dimension(400, 100));
+        queryScrollPane.setPreferredSize(new Dimension(400, 120));
         mainPanel.add(queryScrollPane, gbc);
         
         // Authorization Section
@@ -289,7 +290,7 @@ public class SendNode extends Node {
         gbc.weighty = 0.3;
         JPanel headersPanel = createHeadersPanel(properties);
         JScrollPane headersScrollPane = new JScrollPane(headersPanel);
-        headersScrollPane.setPreferredSize(new Dimension(400, 80));
+        headersScrollPane.setPreferredSize(new Dimension(400, 110));
         mainPanel.add(headersScrollPane, gbc);
         
         // JSON Body
@@ -683,6 +684,7 @@ public class SendNode extends Node {
         // Minus button
         c.gridx = 2;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
             rowsPanel.revalidate();
@@ -722,6 +724,7 @@ public class SendNode extends Node {
         
         c.gridx = 1;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
             rowsPanel.revalidate();
@@ -999,6 +1002,7 @@ public class SendNode extends Node {
         c.gridx = 2;
         c.weightx = 0;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
             rowsPanel.revalidate();
@@ -1022,6 +1026,12 @@ public class SendNode extends Node {
         valueField.addActionListener(e -> updateCustomHeaders(rowsPanel, properties));
 
         rowsPanel.add(rowPanel);
+    }
+
+    private void styleCompactButton(JButton button) {
+        button.setPreferredSize(COMPACT_BUTTON_SIZE);
+        button.setMinimumSize(COMPACT_BUTTON_SIZE);
+        button.setMaximumSize(COMPACT_BUTTON_SIZE);
     }
 
     private void updateCustomHeaders(JPanel headersPanel, Map<String, Object> properties) {

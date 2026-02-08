@@ -34,6 +34,7 @@ public class SendAndReceiveNode extends Node {
     private static final String CUSTOM_HEADERS = "customHeaders";
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
+    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(32, 24);
 
     public SendAndReceiveNode() {
         this.addEdge("Success");
@@ -377,7 +378,7 @@ public class SendAndReceiveNode extends Node {
         gbc.weighty = 0.3;
         JPanel queryParamsPanel = createMappingPanel(properties, QUERY_VARIABLES);
         JScrollPane queryScrollPane = new JScrollPane(queryParamsPanel);
-        queryScrollPane.setPreferredSize(new Dimension(400, 80));
+        queryScrollPane.setPreferredSize(new Dimension(400, 120));
         mainPanel.add(queryScrollPane, gbc);
         
         // Authorization Section
@@ -398,7 +399,7 @@ public class SendAndReceiveNode extends Node {
         gbc.weighty = 0.2;
         JPanel headersPanel = createHeadersPanel(properties);
         JScrollPane headersScrollPane = new JScrollPane(headersPanel);
-        headersScrollPane.setPreferredSize(new Dimension(400, 60));
+        headersScrollPane.setPreferredSize(new Dimension(400, 110));
         mainPanel.add(headersScrollPane, gbc);
         
         // JSON Body
@@ -821,6 +822,7 @@ public class SendAndReceiveNode extends Node {
         
         c.gridx = 2;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             varsPanel.remove(rowPanel);
             if (varsPanel.getComponentCount() <= 1) {
@@ -888,6 +890,7 @@ public class SendAndReceiveNode extends Node {
 
         c.gridx = 2;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
             rowsPanel.revalidate();
@@ -903,91 +906,86 @@ public class SendAndReceiveNode extends Node {
     }
 
     private JPanel createResponseMappingPanel(Map<String, Object> properties) {
-        JPanel mappingsPanel = new JPanel(new GridBagLayout());
         List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);
-        
-        // Add header row
-        JPanel headerPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints hc = new GridBagConstraints();
-        hc.fill = GridBagConstraints.HORIZONTAL;
-        hc.insets = new Insets(2, 2, 2, 2);
-        
-        hc.gridx = 0;
-        hc.weightx = 0.4;
+        JPanel rowsPanel = new JPanel();
+        rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
+
+        JButton addRowButton = new JButton("+");
+        addRowButton.addActionListener(e -> {
+            addResponseMappingRow(rowsPanel, properties, allVars, "", "");
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+        });
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        JPanel labelsPanel = new JPanel(new GridLayout(1, 2, 8, 0));
         JLabel jsonKeyLabel = new JLabel("JsonKey");
         jsonKeyLabel.setFont(jsonKeyLabel.getFont().deriveFont(java.awt.Font.BOLD));
-        headerPanel.add(jsonKeyLabel, hc);
-        
-        hc.gridx = 1;
-        hc.weightx = 0;
-        headerPanel.add(new JLabel(""), hc);
-        
-        hc.gridx = 2;
-        hc.weightx = 0.4;
         JLabel variableLabel = new JLabel("Variable");
         variableLabel.setFont(variableLabel.getFont().deriveFont(java.awt.Font.BOLD));
-        headerPanel.add(variableLabel, hc);
-        
-        hc.gridx = 3;
-        hc.weightx = 0;
-        headerPanel.add(new JLabel(""), hc);
-        
-        hc.gridx = 4;
-        headerPanel.add(new JLabel(""), hc);
-        
-        GridBagConstraints headerGbc = new GridBagConstraints();
-        headerGbc.gridx = 0;
-        headerGbc.gridy = 0;
-        headerGbc.weightx = 1.0;
-        headerGbc.weighty = 0;
-        headerGbc.fill = GridBagConstraints.HORIZONTAL;
-        headerGbc.anchor = GridBagConstraints.NORTHWEST;
-        mappingsPanel.add(headerPanel, headerGbc);
-        
+        labelsPanel.add(jsonKeyLabel);
+        labelsPanel.add(variableLabel);
+        headerPanel.add(labelsPanel, BorderLayout.CENTER);
+        JPanel addButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        addButtonPanel.add(addRowButton);
+        headerPanel.add(addButtonPanel, BorderLayout.EAST);
+
+        JPanel container = new JPanel(new BorderLayout());
+        container.add(headerPanel, BorderLayout.NORTH);
+        container.add(rowsPanel, BorderLayout.CENTER);
+
         String mappingsStr = properties.getOrDefault(RESPONSE_MAPPINGS, "").toString();
-        
         if (!mappingsStr.trim().isEmpty()) {
             String[] mappings = mappingsStr.split(",");
-            int index = 1;
             for (String mapping : mappings) {
                 mapping = mapping.trim();
                 if (!mapping.isEmpty()) {
                     String[] parts = mapping.split("=");
                     String jsonKey = parts.length > 0 ? parts[0].trim() : "";
                     String varName = parts.length > 1 ? parts[1].trim() : "";
-                    addResponseMappingRowAt(mappingsPanel, properties, allVars, jsonKey, varName, index++);
+                    addResponseMappingRow(rowsPanel, properties, allVars, jsonKey, varName);
                 }
             }
-        } else {
-            addResponseMappingRowAt(mappingsPanel, properties, allVars, "", "", 1);
         }
-        
-        return mappingsPanel;
+
+        if (rowsPanel.getComponentCount() == 0) {
+            addResponseMappingRow(rowsPanel, properties, allVars, "", "");
+        }
+
+        return container;
     }
-    
-    private void addResponseMappingRowAt(JPanel mappingsPanel, Map<String, Object> properties, 
-                                         List<Slot> allVars, String jsonKey, String varName, int index) {
+
+    private void addResponseMappingRow(JPanel rowsPanel, Map<String, Object> properties,
+                                       List<Slot> allVars, String jsonKey, String varName) {
         JPanel rowPanel = new JPanel(new GridBagLayout());
+        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(2, 2, 2, 2);
-        
-        // JSON Key TextField
+
         c.gridx = 0;
         c.weightx = 0.4;
         JTextField jsonKeyField = new JTextField(jsonKey, 10);
+        jsonKeyField.addActionListener(e -> updateResponseMappings(rowsPanel, properties));
         jsonKeyField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent e) {
-                updateResponseMappings(mappingsPanel, properties);
+                updateResponseMappings(rowsPanel, properties);
+            }
+        });
+        jsonKeyField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            private void update() {
+                updateResponseMappings(rowsPanel, properties);
             }
         });
         rowPanel.add(jsonKeyField, c);
-        
+
         c.gridx = 1;
         c.weightx = 0;
         rowPanel.add(new JLabel(" = "), c);
-        
-        // Variable Dropdown
+
         c.gridx = 2;
         c.weightx = 0.4;
         JComboBox<String> comboBox = new JComboBox<>();
@@ -995,55 +993,29 @@ public class SendAndReceiveNode extends Node {
         for (Slot slot : allVars) {
             comboBox.addItem(slot.getName());
         }
-        
+
         if (!varName.isEmpty()) {
             comboBox.setSelectedItem(varName);
         }
-        
-        comboBox.addActionListener(e -> updateResponseMappings(mappingsPanel, properties));
+
+        comboBox.addActionListener(e -> updateResponseMappings(rowsPanel, properties));
         rowPanel.add(comboBox, c);
-        
-        // Plus Button
+
         c.gridx = 3;
-        c.weightx = 0;
-        JButton plusButton = new JButton("+");
-        plusButton.addActionListener(e -> {
-            int idx = getRowIndex(mappingsPanel, rowPanel);
-            addResponseMappingRowAt(mappingsPanel, properties, allVars, "", "", idx + 1);
-            mappingsPanel.revalidate();
-            mappingsPanel.repaint();
-            updateResponseMappings(mappingsPanel, properties);
-        });
-        rowPanel.add(plusButton, c);
-        
-        // Minus Button
-        c.gridx = 4;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
-            mappingsPanel.remove(rowPanel);
-            mappingsPanel.revalidate();
-            mappingsPanel.repaint();
-            updateResponseMappings(mappingsPanel, properties);
+            rowsPanel.remove(rowPanel);
+            rowsPanel.revalidate();
+            rowsPanel.repaint();
+            updateResponseMappings(rowsPanel, properties);
+            if (rowsPanel.getComponentCount() == 0) {
+                addResponseMappingRow(rowsPanel, properties, allVars, "", "");
+            }
         });
         rowPanel.add(minusButton, c);
-        
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = index;
-        gbc.weightx = 1.0;
-        gbc.weighty = 0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.insets = new Insets(0, 0, 0, 0);
-        
-        mappingsPanel.add(rowPanel, gbc, index);
-        
-        GridBagConstraints fillerGbc = new GridBagConstraints();
-        fillerGbc.gridx = 0;
-        fillerGbc.gridy = 999;
-        fillerGbc.weighty = 1.0;
-        fillerGbc.fill = GridBagConstraints.BOTH;
-        mappingsPanel.add(Box.createVerticalGlue(), fillerGbc);
+
+        rowsPanel.add(rowPanel);
     }
     
     private void updateResponseMappings(JPanel mappingsPanel, Map<String, Object> properties) {
@@ -1337,6 +1309,7 @@ public class SendAndReceiveNode extends Node {
         c.gridx = 2;
         c.weightx = 0;
         JButton minusButton = new JButton("-");
+        styleCompactButton(minusButton);
         minusButton.addActionListener(e -> {
             rowsPanel.remove(rowPanel);
             rowsPanel.revalidate();
@@ -1362,6 +1335,12 @@ public class SendAndReceiveNode extends Node {
         rowsPanel.add(rowPanel);
     }
     
+    private void styleCompactButton(JButton button) {
+        button.setPreferredSize(COMPACT_BUTTON_SIZE);
+        button.setMinimumSize(COMPACT_BUTTON_SIZE);
+        button.setMaximumSize(COMPACT_BUTTON_SIZE);
+    }
+
     private void updateCustomHeaders(JPanel headersPanel, Map<String, Object> properties) {
         List<String> headers = new ArrayList<>();
         
