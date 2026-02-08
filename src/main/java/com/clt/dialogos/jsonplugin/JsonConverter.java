@@ -196,6 +196,13 @@ public class JsonConverter {
             return current;
         }
 
+        if (path.charAt(0) == '[' && current instanceof JSONObject) {
+            JSONObject obj = (JSONObject) current;
+            if (obj.has("$root")) {
+                current = obj.get("$root");
+            }
+        }
+
         int pos = 0;
         int length = path.length();
         while (pos < length) {
