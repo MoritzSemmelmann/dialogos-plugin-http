@@ -35,7 +35,7 @@ public class SendAndReceiveNode extends Node {
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
     private static final String REMOVE_LABEL = "-";
-    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(26, 24);
+    private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(22, 22);
 
     public SendAndReceiveNode() {
         this.addEdge("Success");
@@ -1344,6 +1344,8 @@ public class SendAndReceiveNode extends Node {
     }
     
     private void styleCompactButton(JButton button) {
+        button.setText(REMOVE_LABEL);
+        button.setMargin(new Insets(0, 4, 0, 4));
         button.setPreferredSize(COMPACT_BUTTON_SIZE);
         button.setMinimumSize(COMPACT_BUTTON_SIZE);
         button.setMaximumSize(COMPACT_BUTTON_SIZE);
