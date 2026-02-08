@@ -135,18 +135,22 @@ public class JsonConverter {
             String varName = parts[1].trim();
             
             try {
+                System.out.println("Mapping request: jsonPath='" + jsonKey + "' -> slot='" + varName + "'");
                 Object jsonValue = resolveJsonPath(responseJson, jsonKey);
                 if (jsonValue != JSON_PATH_NOT_FOUND) {
+                    System.out.println("  Resolved path '" + jsonKey + "' to value: " + jsonValue);
                     Value dialogosValue = jsonToValue(jsonValue);
+                    System.out.println("  Converted JSON value to DialogOS value: " + dialogosValue + " (" + dialogosValue.getType() + ")");
                     Slot targetSlot = slotProvider.apply(varName);
                     if (targetSlot != null) {
+                        System.out.println("  Found slot '" + varName + "', assigning value...");
                         targetSlot.setValue(dialogosValue);
                         System.out.println("  " + jsonKey + " -> " + varName + ": " + dialogosValue + " (" + dialogosValue.getType() + ")");
                     } else {
                         System.out.println("  ERROR: Variable '" + varName + "' not found");
                     }
                 } else {
-                    System.out.println("  " + jsonKey + " not found in response JSON (skipping " + varName + ")");
+                    System.out.println("  Path '" + jsonKey + "' not found in response JSON (skipping '" + varName + "')");
                 }
             } catch (Exception e) {
                 System.out.println("  ERROR: " + jsonKey + " -> " + varName + ": " + e.getMessage());
