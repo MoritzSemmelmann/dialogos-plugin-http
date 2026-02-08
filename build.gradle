@@ -12,21 +12,15 @@ repositories {
 }
 
 dependencies {
-    // Nur zum Kompilieren nötig (DialogOS bringt das zur Laufzeit selbst mit)
     compileOnly 'com.github.dialogos-project:dialogos:2.1.4'
-
-    // Muss ins JAR gepackt werden, da DialogOS kein JSON hat
     implementation 'org.json:json:20231013'
 }
 
 jar {
     archiveBaseName = 'dialogos-plugin-json'
-
-    // Packt die 'implementation' Abhängigkeiten (org.json) direkt ins JAR
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
-
     manifest {
         attributes(
                 'Plugin-Id': 'com.clt.dialogos.jsonplugin',
