@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'maven-publish'
 }
 
 group = 'com.github.dialogos-project'
@@ -30,4 +31,17 @@ jar {
     }
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.java
+                groupId = 'com.github.MoritzSemmelmann'
+                artifactId = 'dialogos-json-http'
+                version = '1.0.0'
+            }
+        }
+    }
 }
