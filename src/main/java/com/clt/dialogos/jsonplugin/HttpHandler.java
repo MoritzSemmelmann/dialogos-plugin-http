@@ -5,15 +5,22 @@ import com.clt.script.exp.Value;
 import com.clt.script.exp.values.StringValue;
 import org.json.JSONObject;
 
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.ProtocolException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -22,6 +29,11 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class HttpHandler {
+
+    @FunctionalInterface
+    private interface HeaderConsumer {
+        void accept(String key, String value);
+    }
     
     public static class HttpResult {
         public final boolean success;
@@ -54,15 +66,22 @@ public class HttpHandler {
         Map<String, String> resolvedQueryParams = buildQueryParameters(queryParams, slotProvider);
         
         String finalUrl = appendQueryParameters(url, resolvedQueryParams);
-        
+
+        if (trustAllCertificates) {
+            return sendHttpRequestWithHostnameBypass(
+                finalUrl,
+                httpMethod,
+                jsonBody,
+                authType,
+                authValue,
+                customHeaders,
+                slotProvider
+            );
+        }
+
         try {
             HttpClient.Builder clientBuilder = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10));
-
-            if (trustAllCertificates) {
-                clientBuilder = applyTrustAllCertificates(clientBuilder);
-                System.out.println("WARNING: TLS certificate validation is disabled for this request.");
-            }
 
             HttpClient client = clientBuilder.build();
             
@@ -72,9 +91,10 @@ public class HttpHandler {
                 .header("Accept", "application/json")
                 .timeout(Duration.ofSeconds(30));
             
-            addAuthorizationHeader(requestBuilder, authType, authValue, slotProvider);
+            HeaderConsumer builderHeaders = (key, value) -> requestBuilder.header(key, value);
+            addAuthorizationHeader(builderHeaders, authType, authValue, slotProvider);
             
-            addCustomHeaders(requestBuilder, customHeaders, slotProvider);
+            addCustomHeaders(builderHeaders, customHeaders, slotProvider);
             
             switch (httpMethod.toUpperCase()) {
                 case "GET":
@@ -98,15 +118,6 @@ public class HttpHandler {
             
             HttpRequest request = requestBuilder.build();
 
-            String previousHostnameProp = null;
-            boolean hostnamePropChanged = false;
-            if (trustAllCertificates) {
-                previousHostnameProp = System.getProperty("jdk.internal.httpclient.disableHostnameVerification");
-                System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
-                hostnamePropChanged = true;
-                System.out.println("Hostname verification has been disabled for java.net.http.HttpClient.");
-            }
-
             HttpResponse<String> response;
             try {
                 response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -119,15 +130,6 @@ public class HttpHandler {
                 Thread.currentThread().interrupt();
                 System.err.println("\n✗ HTTP request interrupted");
                 return new HttpResult(false, null, 0, "Request interrupted");
-            } finally {
-                if (hostnamePropChanged) {
-                    if (previousHostnameProp != null) {
-                        System.setProperty("jdk.internal.httpclient.disableHostnameVerification", previousHostnameProp);
-                    } else {
-                        System.clearProperty("jdk.internal.httpclient.disableHostnameVerification");
-                    }
-                    System.out.println("Hostname verification property restored after trust-all request.");
-                }
             }
             
             System.out.println("Status Code: " + response.statusCode());
@@ -164,30 +166,160 @@ public class HttpHandler {
         }
     }
 
-    private static HttpClient.Builder applyTrustAllCertificates(HttpClient.Builder builder) {
-        try {
-            TrustManager[] trustAllManagers = new TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+    private static SSLContext createTrustAllContext() throws Exception {
+        TrustManager[] trustAllManagers = new TrustManager[]{
+            new X509TrustManager() {
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {}
 
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {}
 
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[0];
-                    }
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
                 }
-            };
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllManagers, new SecureRandom());
-            SSLParameters sslParameters = new SSLParameters();
-            sslParameters.setEndpointIdentificationAlgorithm(null);
-            return builder.sslContext(sslContext).sslParameters(sslParameters);
+            }
+        };
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustAllManagers, new SecureRandom());
+        return sslContext;
+    }
+
+    private static HttpResult sendHttpRequestWithHostnameBypass(
+            String finalUrl,
+            String httpMethod,
+            JSONObject jsonBody,
+            String authType,
+            String authValue,
+            String customHeaders,
+            Function<String, Slot> slotProvider) {
+
+        System.out.println("TrustAllCertificates flag is enabled for this request.");
+        System.out.println("WARNING: TLS certificate validation is disabled for this request.");
+
+        HttpURLConnection connection = null;
+        try {
+            URI uri = URI.create(finalUrl);
+            connection = (HttpURLConnection) uri.toURL().openConnection();
+            configureRequestMethod(connection, httpMethod);
+            connection.setConnectTimeout(10_000);
+            connection.setReadTimeout(30_000);
+            connection.setDoInput(true);
+            boolean hasBody = requestMethodAllowsBody(httpMethod);
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Accept", "application/json");
+
+            if (connection instanceof HttpsURLConnection) {
+                HttpsURLConnection httpsConnection = (HttpsURLConnection) connection;
+                SSLContext sslContext = createTrustAllContext();
+                httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+                httpsConnection.setHostnameVerifier((hostname, session) -> true);
+                System.out.println("HTTPS trust-all mode: custom SSLSocketFactory and HostnameVerifier installed.");
+            }
+
+            HeaderConsumer connectionHeaders = connection::setRequestProperty;
+            addAuthorizationHeader(connectionHeaders, authType, authValue, slotProvider);
+            addCustomHeaders(connectionHeaders, customHeaders, slotProvider);
+
+            if (hasBody) {
+                connection.setDoOutput(true);
+                byte[] payload = jsonBody.toString().getBytes(StandardCharsets.UTF_8);
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(payload);
+                }
+            }
+
+            int statusCode = connection.getResponseCode();
+            String responseBody = readResponseBody(connection, statusCode);
+
+            System.out.println("Status Code: " + statusCode);
+            System.out.println("Headers: " + connection.getHeaderFields());
+            System.out.println("\nResponse Body:");
+            System.out.println(responseBody);
+
+            if (statusCode >= 200 && statusCode < 300) {
+                System.out.println("✓ HTTP request successful");
+                return new HttpResult(true, responseBody, statusCode, null);
+            } else {
+                System.err.println("✗ HTTP request failed with status: " + statusCode);
+                return new HttpResult(false, responseBody, statusCode, "HTTP " + statusCode);
+            }
+
+        } catch (java.net.ConnectException e) {
+            System.err.println("\n✗ Connection refused: The server is not reachable");
+            System.err.println("Possible reasons: Wrong URL, server offline, firewall blocking");
+            e.printStackTrace();
+            return new HttpResult(false, null, 503, "Connection refused: Server not reachable");
+        } catch (java.net.UnknownHostException e) {
+            System.err.println("\n✗ Unknown host: The domain could not be resolved");
+            System.err.println("Check if the URL is correct and you have internet connection");
+            e.printStackTrace();
+            return new HttpResult(false, null, 0, "Unknown host: Domain not found");
         } catch (Exception e) {
-            System.err.println("Failed to enable trust-all certificates: " + e.getMessage());
-            return builder;
+            System.err.println("\n✗ HTTP request failed: " + e.getMessage());
+            e.printStackTrace();
+            return new HttpResult(false, null, 0, e.getMessage());
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private static void configureRequestMethod(HttpURLConnection connection, String httpMethod) throws ProtocolException {
+        String upper = httpMethod == null ? "GET" : httpMethod.toUpperCase();
+        switch (upper) {
+            case "GET":
+            case "POST":
+            case "PUT":
+            case "DELETE":
+                connection.setRequestMethod(upper);
+                break;
+            case "PATCH":
+                connection.setRequestProperty("X-HTTP-Method-Override", "PATCH");
+                connection.setRequestMethod("POST");
+                break;
+            default:
+                connection.setRequestMethod("POST");
+                break;
+        }
+    }
+
+    private static boolean requestMethodAllowsBody(String httpMethod) {
+        String upper = httpMethod == null ? "POST" : httpMethod.toUpperCase();
+        switch (upper) {
+            case "POST":
+            case "PUT":
+            case "PATCH":
+                return true;
+            default:
+                return !upper.equals("GET") && !upper.equals("DELETE");
+        }
+    }
+
+    private static String readResponseBody(HttpURLConnection connection, int statusCode) {
+        InputStream stream = null;
+        try {
+            if (statusCode >= 200 && statusCode < 300) {
+                stream = connection.getInputStream();
+            } else {
+                stream = connection.getErrorStream();
+            }
+            if (stream == null) {
+                return "";
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line).append(System.lineSeparator());
+                }
+                return sb.toString().trim();
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to read HTTP response body: " + e.getMessage());
+            return "";
         }
     }
     
@@ -263,8 +395,8 @@ public class HttpHandler {
         return sb.toString();
     }
     
-    private static void addAuthorizationHeader(
-            HttpRequest.Builder requestBuilder,
+        private static void addAuthorizationHeader(
+            HeaderConsumer headerConsumer,
             String authType,
             String authValue,
             Function<String, Slot> slotProvider) {
@@ -278,7 +410,7 @@ public class HttpHandler {
                 if (authValue != null && !authValue.isEmpty()) {
                     Value tokenValue = JsonConverter.evaluateExpression(authValue, slotProvider);
                     String token = valueToPlainString(tokenValue);
-                    requestBuilder.header("Authorization", "Bearer " + token);
+                    headerConsumer.accept("Authorization", "Bearer " + token);
                     System.out.println("Authorization: Bearer Token = " + token);
                 }
                 break;
@@ -291,8 +423,8 @@ public class HttpHandler {
                         String username = valueToPlainString(usernameValue);
                         String password = valueToPlainString(passwordValue);
                         String credentials = username + ":" + password;
-                        String encoded = java.util.Base64.getEncoder().encodeToString(credentials.getBytes());
-                        requestBuilder.header("Authorization", "Basic " + encoded);
+                        String encoded = java.util.Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+                        headerConsumer.accept("Authorization", "Basic " + encoded);
                         System.out.println("Authorization: Basic Auth (username: " + username + ", password: " + password + ")");
                         System.out.println("Authorization header: Basic " + encoded);
                     }
@@ -305,7 +437,7 @@ public class HttpHandler {
                         String headerName = parts[0].trim();
                         Value headerValueObj = JsonConverter.evaluateExpression(parts[1].trim(), slotProvider);
                         String headerValue = valueToPlainString(headerValueObj);
-                        requestBuilder.header(headerName, headerValue);
+                        headerConsumer.accept(headerName, headerValue);
                         System.out.println("API Key: " + headerName + " = " + headerValue);
                     }
                 }
@@ -314,7 +446,7 @@ public class HttpHandler {
     }
     
     private static void addCustomHeaders(
-            HttpRequest.Builder requestBuilder,
+            HeaderConsumer headerConsumer,
             String customHeaders,
             Function<String, Slot> slotProvider) {
         
@@ -334,7 +466,7 @@ public class HttpHandler {
                 
                 Value valueObj = JsonConverter.evaluateExpression(expression, slotProvider);
                 String value = valueToPlainString(valueObj);
-                requestBuilder.header(key, value);
+                headerConsumer.accept(key, value);
                 System.out.println("Custom Header: " + key + " = " + value + " (from expression: " + expression + ")");
             }
         }
