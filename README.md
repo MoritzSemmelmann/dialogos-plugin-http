@@ -1,7 +1,7 @@
 # DialogOS HTTP Plugin
 
 A plugin for [DialogOS](https://github.com/dialogos-project/dialogos) that enables users to send and receive HTTP requests and responses within a dialogue flow.
-Credits for Plugin Icon [Http icons created by kerismaker - Flaticon](https://www.flaticon.com/free-icons/http) 
+Credits for Plugin Icon [Http icons created by heisenberg_jr - Flaticon](https://www.flaticon.com/free-icons/http) 
 
 ## Usage
 
