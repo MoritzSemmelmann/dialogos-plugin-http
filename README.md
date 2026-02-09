@@ -3,7 +3,7 @@
 A DialogOS extension that adds dedicated nodes for sending HTTP requests and mapping JSON responses back into DialogOS variables.
 
 ## Key Features
-- **SendNode** – Build a JSON payload from DialogOS slots, configure path/query variables, authentication and custom headers, and send HTTP requests (GET/POST/PUT/DELETE/PATCH). Switch between slot-mapping mode and raw JSON input for the request body, including `${slotName}` placeholders that expand to the current slot values.
+- **SendNode** – Build a JSON payload from DialogOS slots, configure path/query variables, authentication and custom headers, and send HTTP requests (GET/POST/PUT/DELETE/PATCH). Switch between slot-mapping mode and raw JSON input for the request body.
 - **SendAndReceiveNode** – Everything from `SendNode` plus flexible response handling:
   - Store the entire JSON response either as a struct or as a raw string.
   - Map multiple JSON fields (including nested objects/arrays via `path.to.field` or `array[0].value`) directly into separate DialogOS variables.
@@ -40,7 +40,7 @@ The resulting artifact `build/libs/dialogos-plugin-json-<version>.jar` already c
 1. Copy the built JAR into `DialogOS/plugins/` and restart DialogOS. The nodes “Send JSON” and “Send and Receive JSON” become available in the node palette.
 2. Configure request details inside the node editor:
   - HTTP method, URL, and optional path/query variable mappings.
-  - Body section: toggle between “Use variable mappings” (each entry as `jsonKey=slotName`) and “Enter raw JSON” to paste a full JSON document directly. In raw mode you can interpolate slots with `${variableName}` placeholders, which are replaced with the current slot values before the JSON is parsed.
+  - Body section: toggle between “Use variable mappings” (each entry as `jsonKey=slotName`) and “Enter raw JSON” to paste a full JSON document directly.
   - Fields accept either a selected DialogOS variable or a literal string typed directly into the editor; literal text is treated as-is unless you wrap it in quotes to force expression parsing.
   - Authentication mode (`Bearer`, `Basic`, API key) and custom headers.
 3. For `SendAndReceiveNode`, choose **Response Mode**:
