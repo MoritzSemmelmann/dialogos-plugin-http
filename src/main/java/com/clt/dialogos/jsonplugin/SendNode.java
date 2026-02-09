@@ -4,6 +4,8 @@ import com.clt.diamant.*;
 import com.clt.diamant.graph.Graph;
 import com.clt.diamant.graph.Node;
 import com.clt.diamant.graph.nodes.NodeExecutionException;
+import com.clt.script.exp.Value;
+import com.clt.script.exp.values.StringValue;
 import com.clt.xml.XMLReader;
 import com.clt.xml.XMLWriter;
 import org.json.JSONObject;
@@ -474,7 +476,10 @@ public class SendNode extends Node {
         if (slot == null) {
             return "";
         }
-        Object value = slot.getValue();
+        Value value = slot.getValue();
+        if (value instanceof StringValue) {
+            return ((StringValue) value).getString();
+        }
         return value == null ? "" : value.toString();
     }
 
