@@ -5,11 +5,17 @@ import com.clt.script.exp.Value;
 import com.clt.script.exp.values.StringValue;
 import org.json.JSONObject;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,7 +46,8 @@ public class HttpHandler {
             Function<String, Slot> slotProvider,
             String authType,
             String authValue,
-            String customHeaders) {
+            String customHeaders,
+            boolean trustAllCertificates) {
         
         String url = buildUrlWithPathVariables(baseUrl, pathVarMappings, slotProvider);
         
@@ -48,15 +55,16 @@ public class HttpHandler {
         
         String finalUrl = appendQueryParameters(url, resolvedQueryParams);
         
-        System.out.println("Method: " + httpMethod);
-        System.out.println("URL: " + finalUrl);
-        System.out.println("\nJSON Body:");
-        System.out.println(jsonBody.toString(2));
-        
         try {
-            HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+            HttpClient.Builder clientBuilder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10));
+
+            if (trustAllCertificates) {
+                clientBuilder = applyTrustAllCertificates(clientBuilder);
+                System.out.println("WARNING: TLS certificate validation is disabled for this request.");
+            }
+
+            HttpClient client = clientBuilder.build();
             
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(finalUrl))
@@ -137,8 +145,33 @@ public class HttpHandler {
             return new HttpResult(false, null, 0, e.getMessage());
         }
     }
-    
 
+    private static HttpClient.Builder applyTrustAllCertificates(HttpClient.Builder builder) {
+        try {
+            TrustManager[] trustAllManagers = new TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+                }
+            };
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllManagers, new SecureRandom());
+            SSLParameters sslParameters = new SSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm(null);
+            return builder.sslContext(sslContext).sslParameters(sslParameters);
+        } catch (Exception e) {
+            System.err.println("Failed to enable trust-all certificates: " + e.getMessage());
+            return builder;
+        }
+    }
     
     private static String buildUrlWithPathVariables(
             String baseUrl,

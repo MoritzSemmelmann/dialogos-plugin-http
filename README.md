@@ -29,6 +29,7 @@ You can configure the request details directly within the node editor:
     * **Raw JSON**: Paste a complete JSON document directly into the editor.
 * **Input Handling**: Fields accept either a selected DialogOS variable or a literal string. Literal text is treated as-is unless wrapped in quotes to force expression parsing.
 * **Authentication & Headers**: Supports authentication modes (Bearer, Basic, API key) and custom headers.
+* **Security**: Enable the "Trust all SSL certificates" toggle if you need to call systems with self-signed certificates. This skips certificate validation for that node only—use it for testing scenarios where you control the target service.
 
 ### Response Handling (SendAndReceiveNode)
 

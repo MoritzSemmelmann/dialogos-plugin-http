@@ -36,6 +36,7 @@ public class SendAndReceiveNode extends Node {
     private static final String CUSTOM_HEADERS = "customHeaders";
     private static final String BODY_MODE = "bodyMode";
     private static final String RAW_BODY = "rawBody";
+    private static final String TRUST_ALL_CERTS = "trustAllCerts";
     private static final String REMOVE_LABEL = "-";
     private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(26, 22);
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
@@ -61,6 +62,7 @@ public class SendAndReceiveNode extends Node {
         this.setProperty(CUSTOM_HEADERS, "");
         this.setProperty(BODY_MODE, "mapping");
         this.setProperty(RAW_BODY, "");
+        this.setProperty(TRUST_ALL_CERTS, "false");
     }
 
     @Override
@@ -100,9 +102,23 @@ public class SendAndReceiveNode extends Node {
             String authType = this.getProperty(AUTH_TYPE).toString();
             String authValue = this.getProperty(AUTH_VALUE).toString();
             String customHeaders = this.getProperty(CUSTOM_HEADERS).toString();
+            boolean trustAllCerts = Boolean.parseBoolean(
+                String.valueOf(this.getProperty(TRUST_ALL_CERTS))
+            );
             
             // Send HTTP request and get response
-            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(url, httpMethod, pathVars, queryVarMappings, jsonBody, this::getSlotOrNull, authType, authValue, customHeaders);
+            HttpHandler.HttpResult result = HttpHandler.sendHttpRequest(
+                url,
+                httpMethod,
+                pathVars,
+                queryVarMappings,
+                jsonBody,
+                this::getSlotOrNull,
+                authType,
+                authValue,
+                customHeaders,
+                trustAllCerts
+            );
             
             if (!result.success) {
                 System.err.println("HTTP request failed: " + result.errorMessage);
@@ -433,13 +449,25 @@ public class SendAndReceiveNode extends Node {
         JScrollPane headersScrollPane = new JScrollPane(headersPanel);
         headersScrollPane.setPreferredSize(new Dimension(400, 110));
         mainPanel.add(headersScrollPane, gbc);
+
+        gbc.gridy = 8;
+        gbc.weighty = 0;
+        JCheckBox trustAllCheckbox = new JCheckBox("Trust all SSL certificates (insecure)");
+        boolean trustAllSelected = Boolean.parseBoolean(
+            properties.getOrDefault(TRUST_ALL_CERTS, "false").toString()
+        );
+        trustAllCheckbox.setSelected(trustAllSelected);
+        trustAllCheckbox.addActionListener(
+            e -> properties.put(TRUST_ALL_CERTS, Boolean.toString(trustAllCheckbox.isSelected()))
+        );
+        mainPanel.add(trustAllCheckbox, gbc);
         
         // JSON Body
-        gbc.gridy = 8;
+        gbc.gridy = 9;
         gbc.weighty = 0;
         mainPanel.add(new JLabel("JSON Body:"), gbc);
         
-        gbc.gridy = 9;
+        gbc.gridy = 10;
         gbc.weighty = 0.3;
         mainPanel.add(createBodyInputPanel(properties), gbc);
         
@@ -1322,6 +1350,7 @@ public class SendAndReceiveNode extends Node {
         Graph.printAtt(out, CUSTOM_HEADERS, this.getProperty(CUSTOM_HEADERS).toString());
         Graph.printAtt(out, BODY_MODE, this.getProperty(BODY_MODE).toString());
         Graph.printAtt(out, RAW_BODY, this.getProperty(RAW_BODY).toString());
+        Graph.printAtt(out, TRUST_ALL_CERTS, this.getProperty(TRUST_ALL_CERTS).toString());
     }
 
     @Override
@@ -1330,7 +1359,7 @@ public class SendAndReceiveNode extends Node {
             name.equals(QUERY_VARIABLES) || name.equals(BODY_VARIABLES) || name.equals(RESPONSE_MODE) ||
             name.equals(RESPONSE_MAPPINGS) || name.equals(RESPONSE_TARGET_VAR) || name.equals(RESPONSE_AS_STRING) ||
             name.equals(AUTH_TYPE) || name.equals(AUTH_VALUE) || name.equals(CUSTOM_HEADERS) ||
-            name.equals(BODY_MODE) || name.equals(RAW_BODY)) {
+            name.equals(BODY_MODE) || name.equals(RAW_BODY) || name.equals(TRUST_ALL_CERTS)) {
             this.setProperty(name, value);
         } else {
             super.readAttribute(r, name, value, uid_map);
