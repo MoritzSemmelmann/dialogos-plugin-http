@@ -54,8 +54,12 @@ public class JsonConverter {
             }
             
             Value value = evaluateExpression(expression, slotProvider);
-            String jsonStr = value.toJson();
-            Object jsonValue = parseJsonString(jsonStr);
+            Object jsonValue;
+            if (value instanceof StringValue) {
+                jsonValue = interpretStringSlot(((StringValue) value).getString());
+            } else {
+                jsonValue = parseJsonString(value.toJson());
+            }
             jsonObject.put(jsonKey, jsonValue);
         }
         
@@ -79,6 +83,31 @@ public class JsonConverter {
                 return jsonStr;
             }
         }
+    }
+
+    private static Object interpretStringSlot(String raw) {
+        if (raw == null) {
+            return JSONObject.NULL;
+        }
+
+        String trimmed = raw.trim();
+        if (!trimmed.isEmpty()) {
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+                try {
+                    return new JSONObject(trimmed);
+                } catch (Exception ignored) {
+                    // fall through and treat as plain string
+                }
+            } else if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                try {
+                    return new JSONArray(trimmed);
+                } catch (Exception ignored) {
+                    // fall through and treat as plain string
+                }
+            }
+        }
+
+        return raw;
     }
     
     public static Value evaluateExpression(String expressionStr, Function<String, Slot> slotProvider) {
