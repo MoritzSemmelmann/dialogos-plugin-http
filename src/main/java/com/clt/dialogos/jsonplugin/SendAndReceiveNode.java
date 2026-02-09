@@ -67,9 +67,7 @@ public class SendAndReceiveNode extends Node {
     }
 
     @Override
-    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {
-        // no VoiceXML support
-    }
+    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {}
 
     public static String getNodeTypeName(Class<?> c) {
         return "Send and Receive JSON";
@@ -245,7 +243,6 @@ public class SendAndReceiveNode extends Node {
                 String varName = mapping[1].trim();
                 result.put(key, varName);
             } else {
-                // No key specified, use variable name as key
                 result.put(part, part);
             }
         }

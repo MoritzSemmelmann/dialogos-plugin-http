@@ -59,9 +59,7 @@ public class SendNode extends Node {
     }
     
     @Override
-    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {
-        // no VoiceXML support
-    }
+    public void writeVoiceXML(XMLWriter w, IdMap uid_map) {}
 
     public static String getNodeTypeName(Class<?> c) {
         return "Send JSON";

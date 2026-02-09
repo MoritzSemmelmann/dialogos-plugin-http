@@ -10,20 +10,13 @@ import org.xml.sax.SAXException;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * Settings for the JSON Plugin
- */
 public class JsonPluginSettings extends PluginSettings {
 
     @Override
-    public void writeAttributes(XMLWriter out, IdMap uidMap) {
-        // Write any persistent settings here
-    }
+    public void writeAttributes(XMLWriter out, IdMap uidMap) {}
 
     @Override
-    protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {
-        // Read any persistent settings here
-    }
+    protected void readAttribute(XMLReader r, String name, String value, IdMap uid_map) throws SAXException {}
 
     @Override
     public JComponent createEditor() {

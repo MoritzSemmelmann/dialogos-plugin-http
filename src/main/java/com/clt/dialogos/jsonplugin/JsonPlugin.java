@@ -2,7 +2,6 @@ package com.clt.dialogos.jsonplugin;
 
 import com.clt.dialogos.plugin.PluginSettings;
 import com.clt.diamant.graph.Node;
-import com.clt.gui.Images;
 
 import javax.swing.*;
 import java.util.Arrays;
@@ -21,7 +20,6 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public Icon getIcon() {
-        // Return a simple icon
         return UIManager.getIcon("FileView.fileIcon");
     }
 
@@ -40,9 +38,7 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
     }
 
     @Override
-    public void terminate() {
-        // Cleanup resources
-    }
+    public void terminate() {}
 
     @Override
     public PluginSettings createDefaultSettings() {
