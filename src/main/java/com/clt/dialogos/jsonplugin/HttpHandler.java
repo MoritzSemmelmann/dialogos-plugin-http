@@ -97,7 +97,16 @@ public class HttpHandler {
             }
             
             HttpRequest request = requestBuilder.build();
-            
+
+            String previousHostnameProp = null;
+            boolean hostnamePropChanged = false;
+            if (trustAllCertificates) {
+                previousHostnameProp = System.getProperty("jdk.internal.httpclient.disableHostnameVerification");
+                System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
+                hostnamePropChanged = true;
+                System.out.println("Hostname verification has been disabled for java.net.http.HttpClient.");
+            }
+
             HttpResponse<String> response;
             try {
                 response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -110,6 +119,15 @@ public class HttpHandler {
                 Thread.currentThread().interrupt();
                 System.err.println("\n✗ HTTP request interrupted");
                 return new HttpResult(false, null, 0, "Request interrupted");
+            } finally {
+                if (hostnamePropChanged) {
+                    if (previousHostnameProp != null) {
+                        System.setProperty("jdk.internal.httpclient.disableHostnameVerification", previousHostnameProp);
+                    } else {
+                        System.clearProperty("jdk.internal.httpclient.disableHostnameVerification");
+                    }
+                    System.out.println("Hostname verification property restored after trust-all request.");
+                }
             }
             
             System.out.println("Status Code: " + response.statusCode());
