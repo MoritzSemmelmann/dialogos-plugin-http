@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SendNode extends Node {
 
@@ -31,6 +33,7 @@ public class SendNode extends Node {
     private static final String RAW_BODY = "rawBody";
     private static final String REMOVE_LABEL = "-";
     private static final Dimension COMPACT_BUTTON_SIZE = new Dimension(26, 22);
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
     public SendNode() {
         this.addEdge("Success");
@@ -80,6 +83,7 @@ public class SendNode extends Node {
             JSONObject jsonBody;
             if ("raw".equals(bodyMode)) {
                 String rawJson = this.getProperty(RAW_BODY) == null ? "" : this.getProperty(RAW_BODY).toString();
+                rawJson = substituteSlotValues(rawJson);
                 jsonBody = parseRawJsonBody(rawJson);
             } else {
                 // Parse body variable mappings: "jsonKey=var" or "var"
@@ -427,6 +431,33 @@ public class SendNode extends Node {
         } catch (Exception e) {
             throw new NodeExecutionException(this, "Invalid raw JSON body: " + e.getMessage());
         }
+    }
+
+    private String substituteSlotValues(String template) {
+        if (template == null || template.isEmpty()) {
+            return template == null ? "" : template;
+        }
+        Matcher matcher = VARIABLE_PATTERN.matcher(template);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String varName = matcher.group(1).trim();
+            String replacement = resolveSlotValue(varName);
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private String resolveSlotValue(String varName) {
+        if (varName == null || varName.isEmpty()) {
+            return "";
+        }
+        Slot slot = getSlotOrNull(varName);
+        if (slot == null) {
+            return "";
+        }
+        Object value = slot.getValue();
+        return value == null ? "" : value.toString();
     }
 
     
