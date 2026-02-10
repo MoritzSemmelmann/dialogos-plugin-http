@@ -63,7 +63,7 @@ public class SendNode extends Node {
     public void writeVoiceXML(XMLWriter w, IdMap uid_map) {}
 
     public static String getNodeTypeName(Class<?> c) {
-        return "Send JSON";
+        return "Http Send Node";
     }
 
     @Override
