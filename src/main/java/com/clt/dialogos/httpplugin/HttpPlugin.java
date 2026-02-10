@@ -25,7 +25,7 @@ public class HttpPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public String getVersion() {
-        return "1.0.20";
+        return "1.0.21";
     }
 
     @Override
