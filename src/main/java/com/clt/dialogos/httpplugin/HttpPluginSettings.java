@@ -1,4 +1,4 @@
-package com.clt.dialogos.jsonplugin;
+package com.clt.dialogos.httpplugin;
 
 import com.clt.dialogos.plugin.PluginRuntime;
 import com.clt.dialogos.plugin.PluginSettings;
@@ -10,7 +10,7 @@ import org.xml.sax.SAXException;
 import javax.swing.*;
 import java.awt.*;
 
-public class JsonPluginSettings extends PluginSettings {
+public class HttpPluginSettings extends PluginSettings {
 
     @Override
     public void writeAttributes(XMLWriter out, IdMap uidMap) {}
@@ -21,7 +21,7 @@ public class JsonPluginSettings extends PluginSettings {
     @Override
     public JComponent createEditor() {
         JPanel panel = new JPanel(new BorderLayout());
-        JLabel label = new JLabel("JSON Plugin Settings");
+        JLabel label = new JLabel(" HTTP Plugin Settings");
         label.setHorizontalAlignment(SwingConstants.CENTER);
         panel.add(label, BorderLayout.CENTER);
         return panel;
@@ -29,6 +29,6 @@ public class JsonPluginSettings extends PluginSettings {
 
     @Override
     protected PluginRuntime createRuntime(Component parent) throws Exception {
-        return new JsonPluginRuntime();
+        return new HttpPluginRuntime();
     }
 }

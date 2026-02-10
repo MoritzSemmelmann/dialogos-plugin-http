@@ -1,4 +1,4 @@
-package com.clt.dialogos.jsonplugin;
+package com.clt.dialogos.httpplugin;
 
 import com.clt.diamant.Slot;
 import com.clt.script.DefaultEnvironment;

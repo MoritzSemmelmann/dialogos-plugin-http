@@ -1,4 +1,4 @@
-package com.clt.dialogos.jsonplugin;
+package com.clt.dialogos.httpplugin;
 
 import com.clt.diamant.*;
 import com.clt.diamant.graph.Graph;
@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -365,14 +366,14 @@ public class SendAndReceiveNode extends Node {
         pathScrollPane.setBorder(BorderFactory.createTitledBorder("Path Variables"));
         urlContainer.add(pathScrollPane, BorderLayout.CENTER);
         
-        final List<String>[] lastPathVars = new List[]{new ArrayList<>()};
+        final AtomicReference<List<String>> lastPathVars = new AtomicReference<>(new ArrayList<>());
         
         Runnable updatePathVars = () -> {
             properties.put(URL, urlField.getText());
             List<String> pathVarNames = extractPathVariables(urlField.getText());
             
-            if (!pathVarNames.equals(lastPathVars[0])) {
-                lastPathVars[0] = new ArrayList<>(pathVarNames);
+            if (!pathVarNames.equals(lastPathVars.get())) {
+                lastPathVars.set(new ArrayList<>(pathVarNames));
                 
                 pathVarsPanel.removeAll();
                 List<Slot> allVars = this.getGraph().getAllVariables(Graph.LOCAL);

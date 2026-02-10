@@ -18,15 +18,15 @@ dependencies {
 }
 
 jar {
-    archiveBaseName = 'dialogos-plugin-json'
+    archiveBaseName = 'dialogos-plugin-http'
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
     manifest {
         attributes(
-                'Plugin-Id': 'com.clt.dialogos.jsonplugin',
-                'Plugin-Name': 'JSON Plugin',
-                'Plugin-Version': version
+            'Plugin-Id': 'com.clt.dialogos.httpplugin',
+            'Plugin-Name': 'HTTP Plugin',
+            'Plugin-Version': version
         )
     }
 
@@ -39,7 +39,7 @@ afterEvaluate {
             release(MavenPublication) {
                 from components.java
                 groupId = 'com.github.MoritzSemmelmann'
-                artifactId = 'dialogos-json-http'
+                artifactId = 'dialogos-plugin-http'
                 version = '1.0.20'
             }
         }

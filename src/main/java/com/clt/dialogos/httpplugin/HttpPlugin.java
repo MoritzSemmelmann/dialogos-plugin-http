@@ -1,4 +1,4 @@
-package com.clt.dialogos.jsonplugin;
+package com.clt.dialogos.httpplugin;
 
 import com.clt.dialogos.plugin.PluginSettings;
 import com.clt.diamant.graph.Node;
@@ -6,16 +6,16 @@ import com.clt.diamant.graph.Node;
 import javax.swing.*;
 import java.util.Arrays;
 
-public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
+public class HttpPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public String getId() {
-        return "com.clt.dialogos.jsonplugin";
+        return "com.clt.dialogos.httpplugin";
     }
 
     @Override
     public String getName() {
-        return "JSON Plugin";
+        return "HTTP Plugin";
     }
 
     @Override
@@ -25,7 +25,7 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.0.20";
     }
 
     @Override
@@ -42,6 +42,6 @@ public class JsonPlugin implements com.clt.dialogos.plugin.Plugin {
 
     @Override
     public PluginSettings createDefaultSettings() {
-        return new JsonPluginSettings();
+        return new HttpPluginSettings();
     }
 }
